@@ -191,6 +191,18 @@ def _parse_and_store_mariadb(cur, message: str):
         )
 
 
+def _parse_and_store_services(cur, message: str):
+    """Parse check_services.py perfdata and insert a row into service_stats."""
+    m_failed   = re.search(r'failed=(\d+)',    message)
+    m_active   = re.search(r'\bactive=(\d+)',  message)
+    m_inactive = re.search(r'inactive=(\d+)',  message)
+    if m_failed and m_active and m_inactive:
+        cur.execute(
+            "INSERT INTO service_stats (failed_count, active_count, inactive_count, run_at) VALUES (?, ?, ?, NOW())",
+            (int(m_failed.group(1)), int(m_active.group(1)), int(m_inactive.group(1))),
+        )
+
+
 def write_result(conn, check, status: str, message: str):
     cur = conn.cursor()
 
@@ -233,6 +245,10 @@ def write_result(conn, check, status: str, message: str):
     # For the MariaDB check, persist per-table row count snapshots.
     if check["script_name"] == "check_mariadb.py":
         _parse_and_store_mariadb(cur, message)
+
+    # For the service check, persist service status counts.
+    if check["script_name"] == "check_services.py":
+        _parse_and_store_services(cur, message)
 
 
 def update_schedule(conn, check):

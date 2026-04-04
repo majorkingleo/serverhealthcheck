@@ -36,6 +36,7 @@ $is_cpu   = ($check_name === 'check_cpu.py');
 $is_ram   = ($check_name === 'check_ram.py');
 $is_proc  = ($check_name === 'check_processes.py');
 $is_db    = ($check_name === 'check_mariadb.py');
+$is_svc   = ($check_name === 'check_services.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -156,6 +157,27 @@ if ($is_proc) {
     }
 }
 
+if ($is_svc) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date,
+                ROUND(AVG(failed_count))   AS avg_failed,
+                ROUND(AVG(active_count))   AS avg_active,
+                ROUND(AVG(inactive_count)) AS avg_inactive
+         FROM service_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at)
+         ORDER BY date"
+    );
+    $svc_data = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $svc_data[$row['date']] = [
+            'failed'   => (int)$row['avg_failed'],
+            'active'   => (int)$row['avg_active'],
+            'inactive' => (int)$row['avg_inactive'],
+        ];
+    }
+}
+
 if ($is_db) {
     // Widget 1: total rows per database (schema) per day
     $stmt = $pdo->query(
@@ -271,6 +293,16 @@ if ($is_db) {
                     <button class="chart-expand-btn" data-chart="procCount" title="Expand" aria-label="Expand">+</button>
                 </div>
                 <canvas id="procCountChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_svc): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Service Status (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="svcStatus" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="svcStatusChart"></canvas>
             </div>
             <?php endif; ?>
 
@@ -549,6 +581,37 @@ if ($is_db) {
 
         <?php endif; ?>
 
+        <?php if ($is_svc): ?>
+        // --- Service status chart ---
+        <?php
+        echo "const svcDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        $svcActive   = array_map(fn($i) => $svc_data[date('Y-m-d', strtotime("$start +$i days"))]['active']   ?? null, range(0, 29));
+        $svcInactive = array_map(fn($i) => $svc_data[date('Y-m-d', strtotime("$start +$i days"))]['inactive'] ?? null, range(0, 29));
+        $svcFailed   = array_map(fn($i) => $svc_data[date('Y-m-d', strtotime("$start +$i days"))]['failed']   ?? null, range(0, 29));
+        echo "const svcActive   = " . json_encode($svcActive)   . ";\n";
+        echo "const svcInactive = " . json_encode($svcInactive) . ";\n";
+        echo "const svcFailed   = " . json_encode($svcFailed)   . ";\n";
+        ?>
+
+        const svcStatusChartConfig = {
+            type: 'line',
+            data: {
+                labels: svcDates,
+                datasets: [
+                    { label: 'Active',   data: svcActive,   borderColor: '#28a745', backgroundColor: '#28a74522', fill: false, spanGaps: true },
+                    { label: 'Inactive', data: svcInactive, borderColor: '#6c757d', backgroundColor: '#6c757d22', fill: false, spanGaps: true, borderDash: [4,3] },
+                    { label: 'Failed',   data: svcFailed,   borderColor: '#dc3545', backgroundColor: '#dc354522', fill: false, spanGaps: true },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Service Count' }, ticks: { precision: 0 } } }
+            }
+        };
+        new Chart(document.getElementById('svcStatusChart').getContext('2d'), svcStatusChartConfig);
+
+        <?php endif; ?>
+
         <?php if ($is_db): ?>
         // --- MariaDB: total rows per schema per day ---
         <?php
@@ -621,6 +684,9 @@ if ($is_db) {
             <?php endif; ?>
             <?php if ($is_proc): ?>
             procCount:   { config: procCountChartConfig,   title: 'Process Count (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_svc): ?>
+            svcStatus:   { config: svcStatusChartConfig,   title: 'Service Status (Last 30 days)' },
             <?php endif; ?>
             <?php if ($is_db): ?>
             dbSchemaRows: { config: dbSchemaRowsChartConfig, title: 'MariaDB Total Rows per Database (Last 30 days)' },
