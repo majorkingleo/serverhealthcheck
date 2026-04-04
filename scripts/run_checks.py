@@ -143,6 +143,31 @@ def execute_check(check):
         return "UNKNOWN", f"Execution failed: {exc}"
 
 
+def _parse_and_store_smart(cur, message: str):
+    """Parse check_smart.py stdout and insert per-disk rows into smart_results / smart_metrics."""
+    parts = message.split(" | ", 1)
+    body = parts[0]
+    perfdata = parts[1] if len(parts) > 1 else ""
+
+    # Per-disk health: "/dev/sda: SMART health PASSED"
+    for m in re.finditer(r'(/dev/\w+): SMART health (PASSED|FAILED|UNKNOWN)', body):
+        cur.execute(
+            "INSERT INTO smart_results (device, health, run_at) VALUES (?, ?, NOW())",
+            (m.group(1), m.group(2)),
+        )
+
+    # Perfdata metrics: "sde_temp=40C"
+    for m in re.finditer(r'(\w+?)_(\w+)=(\d+(?:\.\d+)?)([A-Za-z%]*)', perfdata):
+        device = "/dev/" + m.group(1)
+        metric = m.group(2)
+        value = float(m.group(3))
+        unit = m.group(4) or None
+        cur.execute(
+            "INSERT INTO smart_metrics (device, metric, value, unit, run_at) VALUES (?, ?, ?, ?, NOW())",
+            (device, metric, value, unit),
+        )
+
+
 def write_result(conn, check, status: str, message: str):
     table_name = sanitize_table_name(check["target_table"])
     cur = conn.cursor()
@@ -176,6 +201,10 @@ def write_result(conn, check, status: str, message: str):
         "INSERT INTO health_checks_stats (check_name, status, timestamp) VALUES (?, ?, NOW())",
         (check["script_name"], status),
     )
+
+    # For the SMART check, also persist per-disk detail rows.
+    if check["script_name"] == "check_smart.py":
+        _parse_and_store_smart(cur, message)
 
 
 def update_schedule(conn, check):

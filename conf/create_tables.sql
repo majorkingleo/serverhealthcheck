@@ -61,12 +61,23 @@ CREATE TABLE IF NOT EXISTS health_checks_stats (
     INDEX idx_stats_timestamp (timestamp)
 );
 
--- Health check stats history table (one row per run)
-CREATE TABLE IF NOT EXISTS health_checks_stats (
+-- Per-disk SMART health result, one row per disk per run
+CREATE TABLE IF NOT EXISTS smart_results (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    check_name VARCHAR(100) NOT NULL,
-    status ENUM('OK', 'WARN', 'ERROR', 'UNKNOWN') NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_stats_check_name (check_name),
-    INDEX idx_stats_timestamp (timestamp)
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    device VARCHAR(20) NOT NULL,
+    health ENUM('PASSED', 'FAILED', 'UNKNOWN') NOT NULL,
+    INDEX idx_smart_results_run (run_at),
+    INDEX idx_smart_results_dev (device, run_at)
+);
+
+-- Per-disk SMART numeric metrics, one row per metric per disk per run
+CREATE TABLE IF NOT EXISTS smart_metrics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    device VARCHAR(20) NOT NULL,
+    metric VARCHAR(50) NOT NULL,
+    value DECIMAL(10,2) NOT NULL,
+    unit VARCHAR(10) NULL,
+    INDEX idx_smart_metrics_dev (device, metric, run_at)
 );
