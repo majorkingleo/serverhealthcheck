@@ -251,8 +251,17 @@ button:hover {
     border-color: #dc3545;
 }
 
+.icon-schedule {
+    background: #6f42c1;
+    border-color: #6f42c1;
+}
+
 .icon-delete:hover {
     background: #b02a37;
+}
+
+.icon-schedule:hover {
+    background: #59359c;
 }
 
 .dark-theme .icon-apply {
@@ -263,6 +272,11 @@ button:hover {
 .dark-theme .icon-delete {
     background: #b02a37;
     border-color: #b02a37;
+}
+
+.dark-theme .icon-schedule {
+    background: #59359c;
+    border-color: #59359c;
 }
 
 @media (max-width: 900px) {

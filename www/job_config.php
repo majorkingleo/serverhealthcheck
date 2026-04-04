@@ -19,10 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $parameters = trim($_POST['parameters'] ?? '');
             $target_table = trim($_POST['target_table'] ?? 'health_checks');
             $enabled = isset($_POST['enabled']) ? 1 : 0;
+            $use_sudo = isset($_POST['sudo']) ? 1 : 0;
 
             if ($script_name) {
-                $stmt = $pdo->prepare("UPDATE checks SET interval_minutes = ?, parameters = ?, target_table = ?, enabled = ? WHERE script_name = ?");
-                $stmt->execute([$interval_minutes, $parameters, $target_table, $enabled, $script_name]);
+                $stmt = $pdo->prepare("UPDATE checks SET interval_minutes = ?, parameters = ?, target_table = ?, enabled = ?, sudo = ? WHERE script_name = ?");
+                $stmt->execute([$interval_minutes, $parameters, $target_table, $enabled, $use_sudo, $script_name]);
                 $success = 'Configuration updated successfully.';
             }
         } elseif (isset($_POST['add'])) {
@@ -31,10 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $parameters = trim($_POST['new_parameters'] ?? '');
             $target_table = trim($_POST['new_target_table'] ?? 'health_checks');
             $enabled = isset($_POST['new_enabled']) ? 1 : 0;
+            $use_sudo = isset($_POST['new_sudo']) ? 1 : 0;
 
             if ($script_name) {
-                $stmt = $pdo->prepare("INSERT INTO checks (script_name, interval_minutes, parameters, target_table, enabled) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$script_name, $interval_minutes, $parameters, $target_table, $enabled]);
+                $stmt = $pdo->prepare("INSERT INTO checks (script_name, interval_minutes, parameters, target_table, enabled, sudo) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$script_name, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo]);
                 $success = 'Job added successfully.';
             } else {
                 $error = 'Please provide a script name.';
@@ -45,6 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("DELETE FROM checks WHERE script_name = ?");
                 $stmt->execute([$script_name]);
                 $success = 'Job deleted successfully.';
+            }
+        } elseif (isset($_POST['schedule_now'])) {
+            $script_name = $_POST['script_name'] ?? '';
+            if ($script_name) {
+                $stmt = $pdo->prepare("UPDATE checks SET next_run = NOW() WHERE script_name = ?");
+                $stmt->execute([$script_name]);
+                $success = 'Job scheduled to run now.';
             }
         }
     } catch (PDOException $e) {
@@ -84,6 +93,7 @@ try {
                 <label>Params: <input type="text" name="new_parameters" placeholder="e.g., 80 90"></label>
                 <label>Table: <input type="text" name="new_target_table" value="health_checks"></label>
                 <label><input type="checkbox" name="new_enabled" checked> Enabled</label>
+                <label><input type="checkbox" name="new_sudo"> Sudo</label>
             </div>
             <div class="job-actions">
                 <button type="submit" name="add" value="1" class="icon-btn icon-apply" title="Add job" aria-label="Add job">&#10003;</button>
@@ -100,10 +110,14 @@ try {
                         <label>Interval: <input type="number" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required></label>
                         <label>Params: <input type="text" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90"></label>
                         <label>Table: <input type="text" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>"></label>
+                        <label>Last: <input type="text" value="<?php echo htmlspecialchars($check['last_run'] ?? ''); ?>" readonly></label>
+                        <label>Next: <input type="text" value="<?php echo htmlspecialchars($check['next_run'] ?? ''); ?>" readonly></label>
                         <label><input type="checkbox" name="enabled" <?php echo $check['enabled'] ? 'checked' : ''; ?>> Enabled</label>
+                        <label><input type="checkbox" name="sudo" <?php echo !empty($check['sudo']) ? 'checked' : ''; ?>> Sudo</label>
                     </div>
                     <div class="job-actions">
                         <button type="submit" name="update" value="1" class="icon-btn icon-apply" title="Apply changes" aria-label="Apply changes">&#10003;</button>
+                        <button type="submit" name="schedule_now" value="1" class="icon-btn icon-schedule" title="Schedule now" aria-label="Schedule now">&#9200;</button>
                         <button type="submit" name="delete" value="1" class="icon-btn icon-delete" title="Delete job" aria-label="Delete job" onclick="return confirm('Are you sure you want to delete this job?')">&#128465;</button>
                     </div>
                 </form>
