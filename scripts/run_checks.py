@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import argparse
 import os
 import re
 import shlex
@@ -54,6 +55,27 @@ def get_due_checks(conn):
         "SELECT script_name, interval_minutes, parameters, target_table, sudo "
         "FROM checks "
         "WHERE enabled = 1 AND (next_run IS NULL OR next_run <= NOW())"
+    )
+    checks = []
+    for script_name, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
+        checks.append(
+            {
+                "script_name": script_name,
+                "interval_minutes": int(interval_minutes or "5"),
+                "parameters": parameters or "",
+                "target_table": target_table or "health_checks",
+                "use_sudo": str(use_sudo).strip() in ("1", "true", "TRUE", "yes", "YES"),
+            }
+        )
+    return checks
+
+
+def get_all_enabled_checks(conn):
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT script_name, interval_minutes, parameters, target_table, sudo "
+        "FROM checks "
+        "WHERE enabled = 1"
     )
     checks = []
     for script_name, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
@@ -149,6 +171,10 @@ def update_schedule(conn, check):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run configured health checks")
+    parser.add_argument("-all", action="store_true", dest="run_all", help="Run all enabled checks immediately")
+    args = parser.parse_args()
+
     try:
         conn = get_connection()
     except mariadb.Error as exc:
@@ -156,7 +182,10 @@ def main():
         return 1
 
     try:
-        checks = get_due_checks(conn)
+        if args.run_all:
+            checks = get_all_enabled_checks(conn)
+        else:
+            checks = get_due_checks(conn)
     except Exception as exc:
         print(f"Failed to load checks: {exc}", file=sys.stderr)
         conn.close()
