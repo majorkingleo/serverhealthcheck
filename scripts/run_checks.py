@@ -174,22 +174,18 @@ def write_result(conn, check, status: str, message: str):
                 (check["script_name"], status, message),
             )
 
-    try:
-        update_then_insert(table_name)
-    except mariadb.Error as exc:
-        fallback_message = f"Failed to write into {table_name}: {exc}"
+    # Always keep the latest real check result in health_checks.
+    update_then_insert("health_checks")
+
+    # Optionally mirror into a configured target table without changing health_checks on failure.
+    if table_name != "health_checks":
         try:
-            cur.execute(
-                "UPDATE health_checks SET status = ?, message = ?, timestamp = NOW() WHERE check_name = ?",
-                ("UNKNOWN", fallback_message, check["script_name"]),
+            update_then_insert(table_name)
+        except mariadb.Error as exc:
+            print(
+                f"{check['script_name']}: could not write to target table {table_name}: {exc}",
+                file=sys.stderr,
             )
-            if cur.rowcount == 0:
-                cur.execute(
-                    "INSERT INTO health_checks (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
-                    (check["script_name"], "UNKNOWN", fallback_message),
-                )
-        except mariadb.Error:
-            pass
 
 
 def upsert_health_state(conn, check, state: str, message: str):
@@ -240,13 +236,17 @@ def main():
         return 0
 
     for check in checks:
-        status, message = execute_check(check)
-        main_state = parse_main_state(message, status)
-        write_result(conn, check, status, message)
-        upsert_health_state(conn, check, main_state, message)
-        update_schedule(conn, check)
-        conn.commit()
-        print(f"{check['script_name']}: {main_state} ({status}) - {message}")
+        try:
+            status, message = execute_check(check)
+            main_state = parse_main_state(message, status)
+            write_result(conn, check, status, message)
+            upsert_health_state(conn, check, main_state, message)
+            update_schedule(conn, check)
+            conn.commit()
+            print(f"{check['script_name']}: {main_state} ({status}) - {message}")
+        except Exception as exc:
+            conn.rollback()
+            print(f"{check['script_name']}: runner error: {exc}", file=sys.stderr)
 
     conn.close()
     return 0
