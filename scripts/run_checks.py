@@ -10,44 +10,9 @@ from pathlib import Path
 
 import mariadb
 
+from db import get_connection
+
 SCRIPT_DIR = Path(__file__).resolve().parent
-DB_CONFIG_PATH = SCRIPT_DIR.parent / "conf" / "db.php"
-
-
-def load_php_db_config(config_path: Path):
-    if not config_path.exists():
-        raise RuntimeError(f"DB config file not found: {config_path}")
-
-    text = config_path.read_text(encoding="utf-8")
-
-    def extract(name: str) -> str:
-        pattern = re.compile(
-            rf"define\(\s*['\"]{name}['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)\s*;"
-        )
-        match = pattern.search(text)
-        if not match:
-            raise RuntimeError(f"Missing {name} in {config_path}")
-        return match.group(1)
-
-    return {
-        "host": extract("DB_HOST"),
-        "user": extract("DB_USER"),
-        "password": extract("DB_PASS"),
-        "name": extract("DB_NAME"),
-    }
-
-
-DB_CONFIG = load_php_db_config(DB_CONFIG_PATH)
-
-
-def get_connection():
-    return mariadb.connect(
-        host=DB_CONFIG["host"],
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        database=DB_CONFIG["name"],
-    )
-
 
 def get_due_checks(conn):
     cur = conn.cursor()

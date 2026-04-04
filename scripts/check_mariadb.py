@@ -1,38 +1,17 @@
 #!/usr/bin/env python3
-import re
 import sys
 from pathlib import Path
 
 import mariadb
 
+from db import get_connection
+
 SCRIPT_DIR = Path(__file__).resolve().parent
-DB_CONFIG_PATH = SCRIPT_DIR.parent / "conf" / "db.php"
 
 SYSTEM_SCHEMAS = frozenset({
     'information_schema', 'mysql', 'performance_schema', 'sys',
 })
 
-
-def load_php_db_config(config_path: Path):
-    if not config_path.exists():
-        raise RuntimeError(f"DB config file not found: {config_path}")
-    text = config_path.read_text(encoding="utf-8")
-
-    def extract(name):
-        m = re.search(
-            rf"define\(\s*['\"]{{name}}['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)\s*;".replace("{name}", name),
-            text
-        )
-        if not m:
-            raise RuntimeError(f"Missing {name} in {config_path}")
-        return m.group(1)
-
-    return {
-        "host":     extract("DB_HOST"),
-        "user":     extract("DB_USER"),
-        "password": extract("DB_PASS"),
-        "name":     extract("DB_NAME"),
-    }
 
 
 def main():
@@ -48,22 +27,13 @@ def main():
         sys.exit(3)
 
     try:
-        cfg = load_php_db_config(DB_CONFIG_PATH)
-    except Exception as exc:
-        print(f"UNKNOWN: Config error: {exc}")
-        sys.exit(3)
-
-    try:
-        conn = mariadb.connect(
-            host=cfg["host"],
-            user=cfg["user"],
-            password=cfg["password"],
-            database=cfg["name"],
-            connect_timeout=10,
-        )
+        conn = get_connection()
     except mariadb.Error as exc:
         print(f"CRIT: Cannot connect to MariaDB: {exc}")
         sys.exit(2)
+    except Exception as exc:
+        print(f"UNKNOWN: Config error: {exc}")
+        sys.exit(3)
 
     try:
         cur = conn.cursor()
