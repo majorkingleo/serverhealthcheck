@@ -65,8 +65,107 @@ button:hover {
     background: #0056b3;
 }
 
+.header-controls a {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border: 1px solid #007bff;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    width: 140px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.header-controls a:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.header-controls button {
+    padding: 0.5rem 1rem;
+    margin-left: 0.5rem;
+    width: 140px;
+    box-sizing: border-box;
+}
+
+.dark-theme .header-controls a {
+    background: #0056b3;
+    border-color: #0056b3;
+    color: white;
+}
+
+.dark-theme .header-controls a:hover {
+    background: #003d82;
+    border-color: #003d82;
+}
+
+.dark-theme .header-controls button {
+    background: #0056b3;
+    border-color: #0056b3;
+    color: white;
+}
+
+.dark-theme .header-controls button:hover {
+    background: #003d82;
+}
+
 .error {
     color: #dc3545;
+}
+
+.login-container ul {
+    list-style: none;
+    padding: 0;
+}
+
+.login-container li {
+    background: #f9f9f9;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dark-theme .login-container li {
+    background: #555;
+}
+
+.login-container li form {
+    margin: 0;
+}
+
+.check-config {
+    background: #f9f9f9;
+    margin: 1rem 0;
+    padding: 1rem;
+    border-radius: 4px;
+}
+
+.dark-theme .check-config {
+    background: #555;
+}
+
+.check-config h3 {
+    margin-top: 0;
+}
+
+.check-config form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.check-config label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .chart-container {

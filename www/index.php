@@ -35,6 +35,11 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
         <h1>Server Health Dashboard</h1>
         <div class="header-controls">
             <button id="theme-toggle">Toggle Theme</button>
+            <a href="change_password.php">Change Password</a>
+            <?php if ($_SESSION['username'] === 'admin'): ?>
+                <a href="user_management.php">User Management</a>
+                <a href="job_config.php">Job Config</a>
+            <?php endif; ?>
             <a href="logout.php">Logout</a>
         </div>
     </header>
