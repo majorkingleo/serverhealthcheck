@@ -174,24 +174,16 @@ button:hover {
     font-size: 0.9rem;
 }
 
+.job-config-container {
+    width: calc(100vw - 3rem);
+    max-width: 1500px;
+}
+
 .add-job-form {
+    width: 100%;
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
-    align-items: center;
-}
-
-.add-job-form label {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.9rem;
-}
-
-.add-job-form input[type="text"],
-.add-job-form input[type="number"] {
-    width: auto;
-    min-width: 150px;
 }
 
 .job-row-form {
@@ -207,6 +199,10 @@ button:hover {
     align-items: center;
     gap: 0.45rem;
     flex: 1;
+}
+
+.job-fields label {
+    flex: 1 1 220px;
 }
 
 .job-fields input[type="text"],
@@ -241,12 +237,12 @@ button:hover {
     border-radius: 6px;
 }
 
-.icon-update {
+.icon-apply {
     background: #17a2b8;
     border-color: #17a2b8;
 }
 
-.icon-update:hover {
+.icon-apply:hover {
     background: #117a8b;
 }
 
@@ -259,7 +255,7 @@ button:hover {
     background: #b02a37;
 }
 
-.dark-theme .icon-update {
+.dark-theme .icon-apply {
     background: #117a8b;
     border-color: #117a8b;
 }
@@ -267,6 +263,16 @@ button:hover {
 .dark-theme .icon-delete {
     background: #b02a37;
     border-color: #b02a37;
+}
+
+@media (max-width: 900px) {
+    .job-config-container {
+        width: calc(100vw - 1.5rem);
+    }
+
+    .job-fields label {
+        flex: 1 1 100%;
+    }
 }
 
 .chart-container {
