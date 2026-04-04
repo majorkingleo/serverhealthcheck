@@ -1,10 +1,10 @@
 -- Create database
--- CREATE DATABASE IF NOT EXISTS serverhealthcheck;
+CREATE DATABASE IF NOT EXISTS serverhealthcheck;
 
 -- Create user
--- CREATE USER IF NOT EXISTS 'serverhealthcheck'@'localhost' IDENTIFIED BY 'serverhealthcheck';
--- GRANT ALL PRIVILEGES ON serverhealthcheck.* TO 'serverhealthcheck'@'localhost';
--- FLUSH PRIVILEGES;
+CREATE USER IF NOT EXISTS 'serverhealthcheck'@'localhost' IDENTIFIED BY 'serverhealthcheck';
+GRANT ALL PRIVILEGES ON serverhealthcheck.* TO 'serverhealthcheck'@'localhost';
+FLUSH PRIVILEGES;
 
 USE serverhealthcheck;
 
@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS checks (
     next_run TIMESTAMP NULL
 );
 
--- Insert a default admin user (password: admin123, hashed)
-INSERT INTO users (username, password_hash) VALUES ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi') ON DUPLICATE KEY UPDATE password_hash=password_hash;
+-- Insert a default admin user (password: admin, hashed)
+INSERT INTO users (username, password_hash) VALUES ('admin', '$2y$12$UTuDn.Ayfs5nBBP636rXdOAR6HDNe4NzVYDlUE8lRGHv1.AyR16Ou') ON DUPLICATE KEY UPDATE password_hash=password_hash;
 
 -- Insert default check configurations
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES 

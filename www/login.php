@@ -6,6 +6,8 @@ if (isLoggedIn()) {
     exit;
 }
 
+error_log('post request: ' . print_r($_POST, true));
+
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -82,15 +84,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     tempDiv.innerHTML = html;
                     const newError = tempDiv.querySelector('.error');
                     if (newError) {
-                        errorP.textContent = newError.textContent;
-                        errorP.style.display = 'block';
+                        let ep = errorP || form.querySelector('.error');
+                        if (!ep) {
+                            ep = document.createElement('p');
+                            ep.className = 'error';
+                            form.appendChild(ep);
+                        }
+                        ep.textContent = newError.textContent;
+                        ep.style.display = 'block';
                     }
                 }
             })
-            .catch(error => {
-                console.error('Error:', error);
-                errorP.textContent = 'An error occurred. Please try again.';
-                errorP.style.display = 'block';
+            .catch(err => {
+                console.error('Error:', err);
+                let ep = errorP || form.querySelector('.error');
+                if (!ep) {
+                    ep = document.createElement('p');
+                    ep.className = 'error';
+                    form.appendChild(ep);
+                }
+                ep.textContent = 'An error occurred. Please try again.';
+                ep.style.display = 'block';
             });
         });
     });
