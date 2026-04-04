@@ -213,6 +213,37 @@ def _parse_and_store_services(cur, message: str):
             )
 
 
+def _parse_and_store_cert(cur, message: str):
+    """Parse check_cert.py output and insert a row into cert_stats."""
+    m_host = re.search(r'CERT \w+: (\S+):(\d+) expires in', message)
+    m_days = re.search(r'days_left=(\d+)', message)
+    if m_host and m_days:
+        cur.execute(
+            "INSERT INTO cert_stats (host, port, days_left, run_at) VALUES (?, ?, ?, NOW())",
+            (m_host.group(1), int(m_host.group(2)), int(m_days.group(1))),
+        )
+
+
+def _parse_and_store_updates(cur, message: str):
+    """Parse check_updates.py perfdata and insert a row into update_stats."""
+    m = re.search(r'pending_updates=(\d+)', message)
+    if m:
+        cur.execute(
+            "INSERT INTO update_stats (pending_count, run_at) VALUES (?, NOW())",
+            (int(m.group(1)),),
+        )
+
+
+def _parse_and_store_zombies(cur, message: str):
+    """Parse check_zombies.py perfdata and insert a row into zombie_stats."""
+    m = re.search(r'zombies=(\d+)', message)
+    if m:
+        cur.execute(
+            "INSERT INTO zombie_stats (zombie_count, run_at) VALUES (?, NOW())",
+            (int(m.group(1)),),
+        )
+
+
 def write_result(conn, check, status: str, message: str):
     cur = conn.cursor()
 
@@ -259,6 +290,18 @@ def write_result(conn, check, status: str, message: str):
     # For the service check, persist service status counts.
     if check["script_name"] == "check_services.py":
         _parse_and_store_services(cur, message)
+
+    # For the cert check, persist days-to-expiry rows.
+    if check["script_name"] == "check_cert.py":
+        _parse_and_store_cert(cur, message)
+
+    # For the updates check, persist pending package count rows.
+    if check["script_name"] == "check_updates.py":
+        _parse_and_store_updates(cur, message)
+
+    # For the zombie check, persist zombie process count rows.
+    if check["script_name"] == "check_zombies.py":
+        _parse_and_store_zombies(cur, message)
 
 
 def update_schedule(conn, check):

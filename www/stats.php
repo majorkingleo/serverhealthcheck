@@ -35,8 +35,11 @@ $is_disk  = ($check_name === 'check_disk.py');
 $is_cpu   = ($check_name === 'check_cpu.py');
 $is_ram   = ($check_name === 'check_ram.py');
 $is_proc  = ($check_name === 'check_processes.py');
-$is_db    = ($check_name === 'check_mariadb.py');
-$is_svc   = ($check_name === 'check_services.py');
+$is_db      = ($check_name === 'check_mariadb.py');
+$is_svc     = ($check_name === 'check_services.py');
+$is_cert    = ($check_name === 'check_cert.py');
+$is_updates = ($check_name === 'check_updates.py');
+$is_zombies = ($check_name === 'check_zombies.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -221,6 +224,58 @@ if ($is_db) {
         $db_schema_tables[$schema] = array_keys($tbls);
     }
 }
+
+if ($is_cert) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date, host, port, ROUND(AVG(days_left)) AS avg_days
+         FROM cert_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at), host, port
+         ORDER BY date, host, port"
+    );
+    $cert_data  = [];
+    $cert_hosts = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $key = $row['host'] . ':' . $row['port'];
+        $cert_data[$row['date']][$key] = (int)$row['avg_days'];
+        $cert_hosts[$key] = true;
+    }
+    $cert_hosts = array_keys($cert_hosts);
+    sort($cert_hosts);
+}
+
+if ($is_updates) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date, ROUND(AVG(pending_count)) AS avg_pending
+         FROM update_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at)
+         ORDER BY date"
+    );
+    $update_data = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $update_data[$row['date']] = (int)$row['avg_pending'];
+    }
+}
+
+if ($is_zombies) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date,
+                ROUND(AVG(zombie_count)) AS avg_count,
+                MAX(zombie_count) AS max_count
+         FROM zombie_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at)
+         ORDER BY date"
+    );
+    $zombie_data = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $zombie_data[$row['date']] = [
+            'avg' => (int)$row['avg_count'],
+            'max' => (int)$row['max_count'],
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -331,6 +386,36 @@ if ($is_db) {
                 <canvas id="<?= htmlspecialchars($jsKey) ?>Chart"></canvas>
             </div>
             <?php endforeach; ?>
+            <?php endif; ?>
+
+            <?php if ($is_cert): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>TLS Certificate &mdash; Days to Expiry (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="certExpiry" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="certExpiryChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_updates): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Pending Updates (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="pendingUpdates" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="pendingUpdatesChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_zombies): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Zombie Processes (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="zombieCount" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="zombieCountChart"></canvas>
+            </div>
             <?php endif; ?>
         </div>
 
@@ -696,6 +781,83 @@ if ($is_db) {
 
         <?php endif; ?>
 
+        <?php if ($is_cert): ?>
+        // --- TLS certificate days-to-expiry chart ---
+        <?php
+        $certPalette = ['#007bff','#fd7e14','#20c997','#e83e8c','#6f42c1','#17a2b8','#ffc107','#dc3545'];
+        echo "const certDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        echo "const certDatasets = [];\n";
+        foreach ($cert_hosts as $idx => $hostkey) {
+            $color = $certPalette[$idx % count($certPalette)];
+            $data  = array_map(
+                fn($i) => $cert_data[date('Y-m-d', strtotime("$start +$i days"))][$hostkey] ?? null,
+                range(0, 29)
+            );
+            echo "certDatasets.push({ label: " . json_encode($hostkey) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
+        }
+        ?>
+        const certExpiryChartConfig = {
+            type: 'line',
+            data: { labels: certDates, datasets: certDatasets },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Days to Expiry' }, ticks: { precision: 0 } }
+                }
+            }
+        };
+        new Chart(document.getElementById('certExpiryChart').getContext('2d'), certExpiryChartConfig);
+        <?php endif; ?>
+
+        <?php if ($is_updates): ?>
+        // --- Pending updates chart ---
+        <?php
+        echo "const updateDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        $updateCounts = array_map(fn($i) => $update_data[date('Y-m-d', strtotime("$start +$i days"))] ?? null, range(0, 29));
+        echo "const updateCounts = " . json_encode($updateCounts) . ";\n";
+        ?>
+        const pendingUpdatesChartConfig = {
+            type: 'line',
+            data: {
+                labels: updateDates,
+                datasets: [
+                    { label: 'Pending Updates', data: updateCounts, borderColor: '#fd7e14', backgroundColor: '#fd7e1422', fill: true, spanGaps: true }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Package Count' }, ticks: { precision: 0 } } }
+            }
+        };
+        new Chart(document.getElementById('pendingUpdatesChart').getContext('2d'), pendingUpdatesChartConfig);
+        <?php endif; ?>
+
+        <?php if ($is_zombies): ?>
+        // --- Zombie process count chart ---
+        <?php
+        echo "const zombieDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        $zombieAvg = array_map(fn($i) => $zombie_data[date('Y-m-d', strtotime("$start +$i days"))]['avg'] ?? null, range(0, 29));
+        $zombieMax = array_map(fn($i) => $zombie_data[date('Y-m-d', strtotime("$start +$i days"))]['max'] ?? null, range(0, 29));
+        echo "const zombieAvg = " . json_encode($zombieAvg) . ";\n";
+        echo "const zombieMax = " . json_encode($zombieMax) . ";\n";
+        ?>
+        const zombieCountChartConfig = {
+            type: 'line',
+            data: {
+                labels: zombieDates,
+                datasets: [
+                    { label: 'Avg', data: zombieAvg, borderColor: '#6f42c1', backgroundColor: '#6f42c122', fill: false, spanGaps: true },
+                    { label: 'Max', data: zombieMax, borderColor: '#dc3545', backgroundColor: '#dc354522', fill: false, spanGaps: true, borderDash: [4,3] },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Zombie Count' }, ticks: { precision: 0 } } }
+            }
+        };
+        new Chart(document.getElementById('zombieCountChart').getContext('2d'), zombieCountChartConfig);
+        <?php endif; ?>
+
         // Chart expand overlay
         const chartConfigs = {
             stats:       { config: statsChartConfig,       title: <?php echo json_encode(htmlspecialchars($title) . ' — Status Timeline (Last 30 days)'); ?> },
@@ -726,6 +888,15 @@ if ($is_db) {
             ?>
             <?= $jsKey ?>: { config: <?= $jsVar ?>, title: <?= json_encode('MariaDB ' . $schema . ' — Rows per Table (Last 30 days)') ?> },
             <?php endforeach; ?>
+            <?php endif; ?>
+            <?php if ($is_cert): ?>
+            certExpiry:     { config: certExpiryChartConfig,     title: 'TLS Certificate — Days to Expiry (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_updates): ?>
+            pendingUpdates: { config: pendingUpdatesChartConfig, title: 'Pending Updates (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_zombies): ?>
+            zombieCount:    { config: zombieCountChartConfig,    title: 'Zombie Processes (Last 30 days)' },
             <?php endif; ?>
         };
 

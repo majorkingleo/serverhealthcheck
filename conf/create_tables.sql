@@ -166,3 +166,38 @@ CREATE TABLE IF NOT EXISTS service_unit_states (
     run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_unit_name (unit_name)
 );
+
+-- TLS certificate expiry history, one row per run
+CREATE TABLE IF NOT EXISTS cert_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    host VARCHAR(253) NOT NULL,
+    port SMALLINT UNSIGNED NOT NULL,
+    days_left INT NOT NULL,
+    INDEX idx_cert_stats_run (run_at),
+    INDEX idx_cert_stats_host (host, port, run_at)
+);
+
+-- Pending package update count history, one row per run
+CREATE TABLE IF NOT EXISTS update_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    pending_count INT NOT NULL,
+    INDEX idx_update_stats_run (run_at)
+);
+
+-- Zombie process count history, one row per run
+CREATE TABLE IF NOT EXISTS zombie_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    zombie_count INT NOT NULL,
+    INDEX idx_zombie_stats_run (run_at)
+);
+
+-- Default check configurations for cert, updates, reboot, and zombie checks
+INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
+('check_cert.py',    'TLS Certificate',  60, 'localhost:443 14 7', 0),
+('check_updates.py', 'Pending Updates',  60, '10 50',              0),
+('check_reboot.py',  'Reboot Required',  60, '',                   0),
+('check_zombies.py', 'Zombie Processes',  5, '5 10',               0)
+ON DUPLICATE KEY UPDATE script_name=script_name;
