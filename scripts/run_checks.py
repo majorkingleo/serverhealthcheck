@@ -290,7 +290,7 @@ def write_result(conn, check, status: str, message: str):
         _parse_and_store_services(cur, message)
 
     # For the cert check, persist days-to-expiry rows.
-    if check["script_name"] == "check_cert.py":
+    if check["script_name"] in ("check_cert.py", "check_cert_files.py"):
         _parse_and_store_cert(cur, message)
 
     # For the updates check, persist pending package count rows.

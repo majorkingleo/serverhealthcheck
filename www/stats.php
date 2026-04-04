@@ -37,9 +37,10 @@ $is_ram   = ($check_name === 'check_ram.py');
 $is_proc  = ($check_name === 'check_processes.py');
 $is_db      = ($check_name === 'check_mariadb.py');
 $is_svc     = ($check_name === 'check_services.py');
-$is_cert    = ($check_name === 'check_cert.py');
-$is_updates = ($check_name === 'check_updates.py');
-$is_zombies = ($check_name === 'check_zombies.py');
+$is_cert       = ($check_name === 'check_cert.py');
+$is_cert_files = ($check_name === 'check_cert_files.py');
+$is_updates    = ($check_name === 'check_updates.py');
+$is_zombies    = ($check_name === 'check_zombies.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -226,23 +227,45 @@ if ($is_db) {
 }
 
 if ($is_cert) {
-    // Get warn/crit thresholds from the check's parameters column
     $p_stmt = $pdo->prepare("SELECT parameters FROM checks WHERE script_name = 'check_cert.py'");
     $p_stmt->execute();
     $cert_params = preg_split('/\s+/', trim($p_stmt->fetchColumn() ?: '14 7'));
     $cert_warn = (int)($cert_params[0] ?? 14);
     $cert_crit = (int)($cert_params[1] ?? 7);
 
-    // Latest days_left per host from the most recent run
+    // Latest days_left per live TLS host (port > 0)
     $stmt = $pdo->query(
         "SELECT c1.host, c1.port, c1.days_left
          FROM cert_stats c1
          INNER JOIN (
              SELECT host, port, MAX(run_at) AS latest
              FROM cert_stats
+             WHERE port > 0
              GROUP BY host, port
          ) c2 ON c1.host = c2.host AND c1.port = c2.port AND c1.run_at = c2.latest
-         ORDER BY c1.host, c1.port"
+         ORDER BY c1.host"
+    );
+    $cert_current = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+if ($is_cert_files) {
+    $p_stmt = $pdo->prepare("SELECT parameters FROM checks WHERE script_name = 'check_cert_files.py'");
+    $p_stmt->execute();
+    $cert_params = preg_split('/\s+/', trim($p_stmt->fetchColumn() ?: '14 7'));
+    $cert_warn = (int)($cert_params[0] ?? 14);
+    $cert_crit = (int)($cert_params[1] ?? 7);
+
+    // Latest days_left per file-based cert (port = 0)
+    $stmt = $pdo->query(
+        "SELECT c1.host, c1.port, c1.days_left
+         FROM cert_stats c1
+         INNER JOIN (
+             SELECT host, port, MAX(run_at) AS latest
+             FROM cert_stats
+             WHERE port = 0
+             GROUP BY host, port
+         ) c2 ON c1.host = c2.host AND c1.port = c2.port AND c1.run_at = c2.latest
+         ORDER BY c1.host"
     );
     $cert_current = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -412,7 +435,7 @@ if ($is_zombies) {
             <?php endif; ?>
         </div>
 
-        <?php if ($is_cert && !empty($cert_current)): ?>
+        <?php if (($is_cert || $is_cert_files) && !empty($cert_current)): ?>
         <div class="checks-list">
             <h2>TLS Certificates <span class="checks-subtitle">(current state)</span></h2>
             <div class="status-widgets">
