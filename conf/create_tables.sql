@@ -34,7 +34,6 @@ CREATE TABLE IF NOT EXISTS checks (
     title VARCHAR(150) NOT NULL,
     interval_minutes INT DEFAULT 5,
     parameters VARCHAR(255) DEFAULT '',
-    target_table VARCHAR(100) DEFAULT 'health_checks',
     enabled BOOLEAN DEFAULT TRUE,
     sudo BOOLEAN DEFAULT FALSE,
     last_run TIMESTAMP NULL,
@@ -45,10 +44,10 @@ CREATE TABLE IF NOT EXISTS checks (
 INSERT INTO users (username, password_hash) VALUES ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi') ON DUPLICATE KEY UPDATE password_hash=password_hash;
 
 -- Insert default check configurations
-INSERT INTO checks (script_name, title, interval_minutes, parameters, target_table, sudo) VALUES 
-('check_disk.py', 'Disk Usage', 5, '80 90', 'health_checks', 0),
-('check_fs_mirror.py', 'Filesystem Mirror', 5, '', 'health_checks', 1),
-('check_smart.py', 'SMART Health', 5, '', 'health_checks', 1) 
+INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES 
+('check_disk.py', 'Disk Usage', 5, '80 90', 0),
+('check_fs_mirror.py', 'Filesystem Mirror', 5, '', 1),
+('check_smart.py', 'SMART Health', 5, '', 1) 
 ON DUPLICATE KEY UPDATE script_name=script_name;
 
 -- Health check stats history table (one row per run)

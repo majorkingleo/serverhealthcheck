@@ -52,19 +52,18 @@ def get_connection():
 def get_due_checks(conn):
     cur = conn.cursor()
     cur.execute(
-        "SELECT script_name, title, interval_minutes, parameters, target_table, sudo "
+        "SELECT script_name, title, interval_minutes, parameters, sudo "
         "FROM checks "
         "WHERE enabled = 1 AND (next_run IS NULL OR next_run <= NOW())"
     )
     checks = []
-    for script_name, title, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
+    for script_name, title, interval_minutes, parameters, use_sudo in cur.fetchall():
         checks.append(
             {
                 "script_name": script_name,
                 "title": title or script_name,
                 "interval_minutes": int(interval_minutes or "5"),
                 "parameters": parameters or "",
-                "target_table": target_table or "health_checks",
                 "use_sudo": str(use_sudo).strip() in ("1", "true", "TRUE", "yes", "YES"),
             }
         )
@@ -74,28 +73,23 @@ def get_due_checks(conn):
 def get_all_enabled_checks(conn):
     cur = conn.cursor()
     cur.execute(
-        "SELECT script_name, title, interval_minutes, parameters, target_table, sudo "
+        "SELECT script_name, title, interval_minutes, parameters, sudo "
         "FROM checks "
         "WHERE enabled = 1"
     )
     checks = []
-    for script_name, title, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
+    for script_name, title, interval_minutes, parameters, use_sudo in cur.fetchall():
         checks.append(
             {
                 "script_name": script_name,
                 "title": title or script_name,
                 "interval_minutes": int(interval_minutes or "5"),
                 "parameters": parameters or "",
-                "target_table": target_table or "health_checks",
                 "use_sudo": str(use_sudo).strip() in ("1", "true", "TRUE", "yes", "YES"),
             }
         )
     return checks
 
-
-def sanitize_table_name(name: str) -> str:
-    safe = "".join(ch for ch in name if ch.isalnum() or ch == "_")
-    return safe if safe else "health_checks"
 
 
 def map_exit_code_to_status(exit_code: int) -> str:
@@ -169,32 +163,17 @@ def _parse_and_store_smart(cur, message: str):
 
 
 def write_result(conn, check, status: str, message: str):
-    table_name = sanitize_table_name(check["target_table"])
     cur = conn.cursor()
 
-    def update_then_insert(target_table: str):
+    cur.execute(
+        "UPDATE health_checks SET status = ?, message = ?, timestamp = NOW() WHERE check_name = ?",
+        (status, message, check["script_name"]),
+    )
+    if cur.rowcount == 0:
         cur.execute(
-            f"UPDATE `{target_table}` SET status = ?, message = ?, timestamp = NOW() WHERE check_name = ?",
-            (status, message, check["script_name"]),
+            "INSERT INTO health_checks (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
+            (check["script_name"], status, message),
         )
-        if cur.rowcount == 0:
-            cur.execute(
-                f"INSERT INTO `{target_table}` (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
-                (check["script_name"], status, message),
-            )
-
-    # Always keep the latest real check result in health_checks.
-    update_then_insert("health_checks")
-
-    # Optionally mirror into a configured target table without changing health_checks on failure.
-    if table_name != "health_checks":
-        try:
-            update_then_insert(table_name)
-        except mariadb.Error as exc:
-            print(
-                f"{check['script_name']}: could not write to target table {table_name}: {exc}",
-                file=sys.stderr,
-            )
 
     # Append a stats row for every run.
     cur.execute(

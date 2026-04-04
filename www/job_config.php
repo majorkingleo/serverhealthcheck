@@ -18,7 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $title = trim($_POST['title'] ?? '');
             $interval_minutes = (int)($_POST['interval_minutes'] ?? 5);
             $parameters = trim($_POST['parameters'] ?? '');
-            $target_table = trim($_POST['target_table'] ?? 'health_checks');
             $enabled = isset($_POST['enabled']) ? 1 : 0;
             $use_sudo = isset($_POST['sudo']) ? 1 : 0;
 
@@ -26,8 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($title === '') {
                     $title = $script_name;
                 }
-                $stmt = $pdo->prepare("UPDATE checks SET title = ?, interval_minutes = ?, parameters = ?, target_table = ?, enabled = ?, sudo = ? WHERE script_name = ?");
-                $stmt->execute([$title, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo, $script_name]);
+                $stmt = $pdo->prepare("UPDATE checks SET title = ?, interval_minutes = ?, parameters = ?, enabled = ?, sudo = ? WHERE script_name = ?");
+                $stmt->execute([$title, $interval_minutes, $parameters, $enabled, $use_sudo, $script_name]);
                 $success = 'Configuration updated successfully.';
             }
         } elseif (isset($_POST['delete'])) {
@@ -141,7 +140,6 @@ try {
                         <label>Title: <input type="text" class="row-editable field-locked" name="title" value="<?php echo htmlspecialchars($check['title'] ?? $check['script_name']); ?>" readonly></label>
                         <label>Interval: <input type="number" class="row-editable field-locked" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required readonly></label>
                         <label>Params: <input type="text" class="row-editable field-locked" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90" readonly></label>
-                        <label>Table: <input type="text" class="row-editable field-locked" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>" readonly></label>
                         <label>Last: <input type="text" class="field-locked" value="<?php echo htmlspecialchars($check['last_run'] ?? ''); ?>" readonly></label>
                         <label>Next: <input type="text" class="field-locked" value="<?php echo htmlspecialchars($check['next_run'] ?? ''); ?>" readonly></label>
                         <label class="field-locked-label"><input type="checkbox" class="row-editable field-locked" name="enabled" <?php echo $check['enabled'] ? 'checked' : ''; ?> disabled> Enabled</label>

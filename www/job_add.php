@@ -16,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = trim($_POST['title'] ?? '');
         $interval_minutes = (int)($_POST['interval_minutes'] ?? 5);
         $parameters = trim($_POST['parameters'] ?? '');
-        $target_table = trim($_POST['target_table'] ?? 'health_checks');
         $enabled = isset($_POST['enabled']) ? 1 : 0;
         $use_sudo = isset($_POST['sudo']) ? 1 : 0;
 
@@ -27,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $title = $script_name;
             }
 
-            $stmt = $pdo->prepare("INSERT INTO checks (script_name, title, interval_minutes, parameters, target_table, enabled, sudo) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$script_name, $title, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo]);
+            $stmt = $pdo->prepare("INSERT INTO checks (script_name, title, interval_minutes, parameters, enabled, sudo) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$script_name, $title, $interval_minutes, $parameters, $enabled, $use_sudo]);
 
             header('Location: job_config.php?added=1');
             exit;
@@ -59,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label>Title: <input type="text" name="title" placeholder="Display title"></label>
                 <label>Interval: <input type="number" name="interval_minutes" value="5" min="1" required></label>
                 <label>Params: <input type="text" name="parameters" placeholder="e.g., 80 90"></label>
-                <label>Table: <input type="text" name="target_table" value="health_checks"></label>
                 <label><input type="checkbox" name="enabled" checked> Enabled</label>
                 <label><input type="checkbox" name="sudo"> Sudo</label>
             </div>
