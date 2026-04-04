@@ -78,9 +78,9 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
         <div class="checks-list">
             <h2>Recent Checks <span class="checks-subtitle">(last 24h)</span></h2>
             <div class="status-widgets">
-                <?php foreach ($check_widgets as $widget): ?>
+                <?php foreach ($check_widgets as $check_name => $widget): ?>
                     <?php $s = strtolower($widget['status']); ?>
-                    <div class="status-widget status-<?php echo $s; ?>" data-title="<?php echo htmlspecialchars($widget['title']); ?>" data-status="<?php echo htmlspecialchars($widget['status']); ?>" data-status-class="status-<?php echo $s; ?>">
+                    <a class="status-widget status-<?php echo $s; ?>" href="stats.php?check=<?php echo urlencode($check_name); ?>">
                         <span class="status-widget-icon"><?php
                             echo $widget['status'] === 'OK'      ? '&#10003;' :
                                 ($widget['status'] === 'WARN'    ? '&#9888;'  :
@@ -88,7 +88,7 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
                         ?></span>
                         <span class="status-widget-title"><?php echo htmlspecialchars($widget['title']); ?></span>
                         <span class="status-widget-badge"><?php echo htmlspecialchars($widget['status']); ?></span>
-                    </div>
+                    </a>
                 <?php endforeach; ?>
             </div>
         </div>
