@@ -14,6 +14,18 @@ foreach ($checks as $check) {
     $status_counts[$check['status']] += $check['count'];
 }
 
+// Aggregate to one widget per check (worst status wins)
+$status_priority = ['ERROR' => 3, 'WARN' => 2, 'UNKNOWN' => 1, 'OK' => 0];
+$check_widgets = [];
+foreach ($checks as $check) {
+    $name = $check['check_name'];
+    if (!isset($check_widgets[$name])) {
+        $check_widgets[$name] = ['title' => $check['check_title'], 'status' => $check['status']];
+    } elseif (($status_priority[$check['status']] ?? 0) > ($status_priority[$check_widgets[$name]['status']] ?? 0)) {
+        $check_widgets[$name]['status'] = $check['status'];
+    }
+}
+
 // Get timeline data for last 7 days
 $timeline_stmt = $pdo->query("SELECT DATE(timestamp) as date, status, COUNT(*) as count FROM health_checks WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY DATE(timestamp), status ORDER BY date");
 $timeline = [];
@@ -45,43 +57,57 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
     </header>
 
     <main>
-        <div class="chart-container">
-            <h2>Overall Status (Last 24h)</h2>
-            <canvas id="statusChart"></canvas>
-        </div>
+        <div class="chart-widgets">
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Overall Status (Last 24h)</h2>
+                    <button class="chart-expand-btn" data-chart="status" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="statusChart"></canvas>
+            </div>
 
-        <div class="chart-container">
-            <h2>Status Timeline (Last 7 days)</h2>
-            <canvas id="timelineChart"></canvas>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Status Timeline (Last 7 days)</h2>
+                    <button class="chart-expand-btn" data-chart="timeline" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="timelineChart"></canvas>
+            </div>
         </div>
 
         <div class="checks-list">
-            <h2>Recent Checks</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Check Name</th>
-                        <th>Status</th>
-                        <th>Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($checks as $check): ?>
-                        <tr class="status-<?php echo strtolower($check['status']); ?>">
-                            <td><?php echo htmlspecialchars($check['check_title']); ?></td>
-                            <td><?php echo htmlspecialchars($check['status']); ?></td>
-                            <td><?php echo $check['count']; ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+            <h2>Recent Checks <span class="checks-subtitle">(last 24h)</span></h2>
+            <div class="status-widgets">
+                <?php foreach ($check_widgets as $widget): ?>
+                    <?php $s = strtolower($widget['status']); ?>
+                    <div class="status-widget status-<?php echo $s; ?>" data-title="<?php echo htmlspecialchars($widget['title']); ?>" data-status="<?php echo htmlspecialchars($widget['status']); ?>" data-status-class="status-<?php echo $s; ?>">
+                        <span class="status-widget-icon"><?php
+                            echo $widget['status'] === 'OK'      ? '&#10003;' :
+                                ($widget['status'] === 'WARN'    ? '&#9888;'  :
+                                ($widget['status'] === 'ERROR'   ? '&#10007;' : '?'));
+                        ?></span>
+                        <span class="status-widget-title"><?php echo htmlspecialchars($widget['title']); ?></span>
+                        <span class="status-widget-badge"><?php echo htmlspecialchars($widget['status']); ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </main>
+
+    <div id="widget-overlay" class="widget-overlay" hidden>
+        <div class="widget-overlay-inner">
+            <div class="widget-overlay-header">
+                <span id="widget-overlay-title" class="widget-overlay-chart-title"></span>
+                <button id="widget-overlay-close" class="widget-overlay-close" aria-label="Close">&times;</button>
+            </div>
+            <canvas id="widget-overlay-canvas"></canvas>
+        </div>
+    </div>
 
     <script>
         // Status Pie Chart
         const statusCtx = document.getElementById('statusChart').getContext('2d');
-        new Chart(statusCtx, {
+        const statusChartConfig = {
             type: 'pie',
             data: {
                 labels: ['OK', 'WARN', 'ERROR', 'UNKNOWN'],
@@ -90,7 +116,8 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
                     backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#6c757d']
                 }]
             }
-        });
+        };
+        new Chart(statusCtx, statusChartConfig);
 
         // Timeline Line Chart
         const timelineCtx = document.getElementById('timelineChart').getContext('2d');
@@ -109,7 +136,7 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
         }
         ?>
 
-        new Chart(timelineCtx, {
+        const timelineChartConfig = {
             type: 'line',
             data: {
                 labels: dates,
@@ -125,7 +152,8 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
                     y: { beginAtZero: true }
                 }
             }
-        });
+        };
+        new Chart(timelineCtx, timelineChartConfig);
 
         // Theme toggle
         document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -137,6 +165,51 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
         if (localStorage.getItem('theme') === 'dark') {
             document.body.classList.add('dark-theme');
         }
+
+        // Chart expand overlay
+        const overlay = document.getElementById('widget-overlay');
+        const overlayTitle = document.getElementById('widget-overlay-title');
+        const overlayCanvas = document.getElementById('widget-overlay-canvas');
+        const overlayClose = document.getElementById('widget-overlay-close');
+        let overlayChartInstance = null;
+
+        document.querySelectorAll('.chart-expand-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const chartType = btn.dataset.chart;
+                const config = JSON.parse(JSON.stringify(
+                    chartType === 'status' ? statusChartConfig : timelineChartConfig
+                ));
+                overlayTitle.textContent = chartType === 'status'
+                    ? 'Overall Status (Last 24h)'
+                    : 'Status Timeline (Last 7 days)';
+
+                if (overlayChartInstance) {
+                    overlayChartInstance.destroy();
+                    overlayChartInstance = null;
+                }
+
+                overlay.hidden = false;
+                document.body.style.overflow = 'hidden';
+                overlayChartInstance = new Chart(overlayCanvas.getContext('2d'), config);
+            });
+        });
+
+        function closeOverlay() {
+            overlay.hidden = true;
+            document.body.style.overflow = '';
+            if (overlayChartInstance) {
+                overlayChartInstance.destroy();
+                overlayChartInstance = null;
+            }
+        }
+
+        overlayClose.addEventListener('click', closeOverlay);
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closeOverlay();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeOverlay();
+        });
     </script>
 </body>
 </html>

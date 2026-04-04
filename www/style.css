@@ -310,12 +310,54 @@ button:hover {
     }
 }
 
-.chart-container {
+.chart-widgets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
     margin: 2rem;
+}
+
+.chart-container {
     background: white;
     padding: 1rem;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    max-width: 400px;
+    flex: 1 1 300px;
+    min-width: 0;
+}
+
+.chart-container-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.chart-container-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.chart-expand-btn {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.12);
+    color: inherit;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-expand-btn:hover {
+    background: rgba(0,0,0,0.25);
 }
 
 .dark-theme .chart-container {
@@ -332,6 +374,155 @@ button:hover {
 
 .dark-theme .checks-list {
     background: #444;
+}
+
+.checks-subtitle {
+    font-size: 0.8rem;
+    font-weight: normal;
+    color: #888;
+}
+
+.status-widgets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.status-widget {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    min-width: 130px;
+    max-width: 400px;
+    flex: 1 1 130px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.status-widget-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.status-widget-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-widget-badge {
+    font-size: 0.7rem;
+    font-weight: bold;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.12);
+    flex-shrink: 0;
+}
+
+.status-widget-expand {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.15);
+    color: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-widget-expand:hover {
+    background: rgba(0,0,0,0.3);
+}
+
+/* Fullscreen overlay */
+.widget-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.widget-overlay[hidden] {
+    display: none;
+}
+
+.widget-overlay-inner {
+    position: relative;
+    border-radius: 16px;
+    padding: 1.5rem;
+    width: 90vw;
+    max-width: 900px;
+    max-height: 90vh;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+    overflow: hidden;
+}
+
+.dark-theme .widget-overlay-inner {
+    background: #444;
+    color: #f4f4f4;
+}
+
+.widget-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.widget-overlay-chart-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.widget-overlay-close {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.18);
+    color: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.widget-overlay-close:hover {
+    background: rgba(0,0,0,0.35);
+}
+
+#widget-overlay-canvas {
+    flex: 1;
+    min-height: 0;
+    width: 100% !important;
 }
 
 table {
