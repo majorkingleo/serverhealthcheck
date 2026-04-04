@@ -30,25 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$title, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo, $script_name]);
                 $success = 'Configuration updated successfully.';
             }
-        } elseif (isset($_POST['add'])) {
-            $script_name = trim($_POST['new_script_name'] ?? '');
-            $title = trim($_POST['new_title'] ?? '');
-            $interval_minutes = (int)($_POST['new_interval_minutes'] ?? 5);
-            $parameters = trim($_POST['new_parameters'] ?? '');
-            $target_table = trim($_POST['new_target_table'] ?? 'health_checks');
-            $enabled = isset($_POST['new_enabled']) ? 1 : 0;
-            $use_sudo = isset($_POST['new_sudo']) ? 1 : 0;
-
-            if ($script_name) {
-                if ($title === '') {
-                    $title = $script_name;
-                }
-                $stmt = $pdo->prepare("INSERT INTO checks (script_name, title, interval_minutes, parameters, target_table, enabled, sudo) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$script_name, $title, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo]);
-                $success = 'Job added successfully.';
-            } else {
-                $error = 'Please provide a script name.';
-            }
         } elseif (isset($_POST['delete'])) {
             $script_name = $_POST['script_name'] ?? '';
             if ($script_name) {
@@ -67,6 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (PDOException $e) {
         $error = 'Database error: ' . $e->getMessage();
     }
+}
+
+
+if (isset($_GET['added']) && $_GET['added'] === '1') {
+    $success = 'Job added successfully.';
 }
 
 // Get all checks
@@ -89,30 +75,46 @@ try {
         .field-modified {
             background-color: #fff59d;
         }
+
+        .sticky-top-right-btn {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            display: inline-block;
+            padding: 0.6rem 1rem;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border: 1px solid #007bff;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sticky-top-right-btn:hover {
+            background: #0056b3;
+            border-color: #0056b3;
+        }
+
+        .dark-theme .sticky-top-right-btn {
+            background: #0056b3;
+            border-color: #0056b3;
+            color: white;
+        }
+
+        .dark-theme .sticky-top-right-btn:hover {
+            background: #003d82;
+            border-color: #003d82;
+        }
     </style>
 </head>
 <body class="subpage">
     <a href="index.php" class="sticky-back-btn">Back to Dashboard</a>
+    <a href="job_add.php" class="sticky-top-right-btn" title="Open Add Job Page" aria-label="Open Add Job Page">Add Job</a>
     <div class="login-container job-config-container">
         <h1>Job Configuration</h1>
 
         <p>Configure the execution interval (in minutes) and command line parameters for each check script.</p>
-
-        <h2>Add New Job</h2>
-        <form method="post" class="add-job-form">
-            <div class="job-fields">
-                <label>Script: <input type="text" name="new_script_name" placeholder="e.g., check_new.py" required></label>
-                <label>Title: <input type="text" name="new_title" placeholder="Display title"></label>
-                <label>Interval: <input type="number" name="new_interval_minutes" value="5" min="1" required></label>
-                <label>Params: <input type="text" name="new_parameters" placeholder="e.g., 80 90"></label>
-                <label>Table: <input type="text" name="new_target_table" value="health_checks"></label>
-                <label><input type="checkbox" name="new_enabled" checked> Enabled</label>
-                <label><input type="checkbox" name="new_sudo"> Sudo</label>
-            </div>
-            <div class="job-actions">
-                <button type="submit" name="add" value="1" class="icon-btn icon-apply" title="Add job" aria-label="Add job">&#10003;</button>
-            </div>
-        </form>
 
         <h2>Existing Jobs</h2>
         <?php foreach ($checks as $check): ?>
@@ -177,7 +179,7 @@ try {
             });
         });
 
-        document.querySelectorAll('form').forEach(form => {
+        document.querySelectorAll('.job-row-form').forEach(form => {
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
@@ -215,9 +217,13 @@ try {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    errorP.textContent = 'An error occurred. Please try again.';
-                    errorP.style.display = 'block';
-                    successP.style.display = 'none';
+                    if (errorP) {
+                        errorP.textContent = 'An error occurred. Please try again.';
+                        errorP.style.display = 'block';
+                    }
+                    if (successP) {
+                        successP.style.display = 'none';
+                    }
                 });
             });
         });
