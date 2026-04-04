@@ -101,4 +101,4 @@ All scripts follow the Nagios plugin convention: exit 0 = OK, 1 = WARN, 2 = CRIT
 
 ## License
 
-GNU General Public License v3.0 — see [LICENSE](LICENSE).
+GNU General Public License v3.0 — see [LICENSE](LICENSE.txt).
