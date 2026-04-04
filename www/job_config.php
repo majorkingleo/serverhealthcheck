@@ -12,53 +12,54 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['update'])) {
-        $script_name = $_POST['script_name'] ?? '';
-        $interval_minutes = (int)($_POST['interval_minutes'] ?? 5);
-        $parameters = trim($_POST['parameters'] ?? '');
-        $target_table = trim($_POST['target_table'] ?? 'health_checks');
-        $enabled = isset($_POST['enabled']) ? 1 : 0;
+    try {
+        if (isset($_POST['update'])) {
+            $script_name = $_POST['script_name'] ?? '';
+            $interval_minutes = (int)($_POST['interval_minutes'] ?? 5);
+            $parameters = trim($_POST['parameters'] ?? '');
+            $target_table = trim($_POST['target_table'] ?? 'health_checks');
+            $enabled = isset($_POST['enabled']) ? 1 : 0;
 
-        if ($script_name) {
-            try {
+            if ($script_name) {
                 $stmt = $pdo->prepare("UPDATE checks SET interval_minutes = ?, parameters = ?, target_table = ?, enabled = ? WHERE script_name = ?");
                 $stmt->execute([$interval_minutes, $parameters, $target_table, $enabled, $script_name]);
                 $success = 'Configuration updated successfully.';
-            } catch (PDOException $e) {
-                $error = 'Error updating configuration: ' . $e->getMessage();
             }
-        }
-    } elseif (isset($_POST['add'])) {
-        $script_name = trim($_POST['new_script_name'] ?? '');
-        $interval_minutes = (int)($_POST['new_interval_minutes'] ?? 5);
-        $parameters = trim($_POST['new_parameters'] ?? '');
-        $target_table = trim($_POST['new_target_table'] ?? 'health_checks');
-        $enabled = isset($_POST['new_enabled']) ? 1 : 0;
+        } elseif (isset($_POST['add'])) {
+            $script_name = trim($_POST['new_script_name'] ?? '');
+            $interval_minutes = (int)($_POST['new_interval_minutes'] ?? 5);
+            $parameters = trim($_POST['new_parameters'] ?? '');
+            $target_table = trim($_POST['new_target_table'] ?? 'health_checks');
+            $enabled = isset($_POST['new_enabled']) ? 1 : 0;
 
-        if ($script_name) {
-            try {
+            if ($script_name) {
                 $stmt = $pdo->prepare("INSERT INTO checks (script_name, interval_minutes, parameters, target_table, enabled) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute([$script_name, $interval_minutes, $parameters, $target_table, $enabled]);
                 $success = 'Job added successfully.';
-            } catch (PDOException $e) {
-                $error = 'Error adding job: ' . $e->getMessage();
+            } else {
+                $error = 'Please provide a script name.';
             }
-        } else {
-            $error = 'Please provide a script name.';
+        } elseif (isset($_POST['delete'])) {
+            $script_name = $_POST['script_name'] ?? '';
+            if ($script_name) {
+                $stmt = $pdo->prepare("DELETE FROM checks WHERE script_name = ?");
+                $stmt->execute([$script_name]);
+                $success = 'Job deleted successfully.';
+            }
         }
-    } elseif (isset($_POST['delete'])) {
-        $script_name = $_POST['script_name'] ?? '';
-        if ($script_name) {
-            $stmt = $pdo->prepare("DELETE FROM checks WHERE script_name = ?");
-            $stmt->execute([$script_name]);
-            $success = 'Job deleted successfully.';
-        }
+    } catch (PDOException $e) {
+        $error = 'Database error: ' . $e->getMessage();
     }
 }
 
 // Get all checks
-$stmt = $pdo->query("SELECT * FROM checks ORDER BY script_name");
-$checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $stmt = $pdo->query("SELECT * FROM checks ORDER BY script_name");
+    $checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = 'Database error: ' . $e->getMessage();
+    $checks = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -109,5 +110,58 @@ $checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <p><a href="index.php">Back to Dashboard</a></p>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const errorP = document.querySelector('.error');
+        const successP = document.querySelector('.success');
+        const container = document.querySelector('.login-container');
+
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const submitter = e.submitter;
+                if (submitter && submitter.name) {
+                    formData.append(submitter.name, submitter.value || '1');
+                }
+                
+                fetch('job_config.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(html => {
+                    if (!html.includes('Job Configuration')) {
+                        window.location.href = 'login.php';
+                        return;
+                    }
+                    // Update messages and content
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    const newError = tempDiv.querySelector('.error');
+                    const newSuccess = tempDiv.querySelector('.success');
+                    const newContainer = tempDiv.querySelector('.login-container');
+                    
+                    if (newSuccess) {
+                        // Reload to show updated list
+                        location.reload();
+                    } else if (newError) {
+                        errorP.textContent = newError.textContent;
+                        errorP.style.display = 'block';
+                        successP.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    errorP.textContent = 'An error occurred. Please try again.';
+                    errorP.style.display = 'block';
+                    successP.style.display = 'none';
+                });
+            });
+        });
+    });
+    </script>
 </body>
 </html>

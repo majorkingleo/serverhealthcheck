@@ -8,25 +8,29 @@ if (isLoggedIn()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    if ($username && $password) {
+    try {
         $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
 
-        if ($user && password_verify($password, $user['password_hash'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $username;
-            header('Location: index.php');
-            exit;
+        if ($username && $password) {
+            $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user && password_verify($password, $user['password_hash'])) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $username;
+                header('Location: index.php');
+                exit;
+            } else {
+                $error = 'Invalid username or password';
+            }
         } else {
-            $error = 'Invalid username or password';
+            $error = 'Please enter username and password';
         }
-    } else {
-        $error = 'Please enter username and password';
+    } catch (PDOException $e) {
+        $error = 'Database error: ' . $e->getMessage();
     }
 }
 ?>
@@ -50,5 +54,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
         </form>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        const errorP = document.querySelector('.error');
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('login.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    return response.text();
+                }
+            })
+            .then(html => {
+                if (html) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    const newError = tempDiv.querySelector('.error');
+                    if (newError) {
+                        errorP.textContent = newError.textContent;
+                        errorP.style.display = 'block';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                errorP.textContent = 'An error occurred. Please try again.';
+                errorP.style.display = 'block';
+            });
+        });
+    });
+    </script>
 </body>
 </html>

@@ -11,38 +11,46 @@ $pdo = getDB();
 $error = '';
 $success = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['add_user'])) {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
+error_log( "User Management accessed by: " . $_SESSION['username'] );
 
-        if ($username && $password) {
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            try {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    error_log( "Received POST request: " . print_r($_POST, true) );
+    try {
+        if (isset($_POST['add_user'])) {
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+
+            if ($username && $password) {
+                $hash = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
                 $stmt->execute([$username, $hash]);
                 $success = 'User added successfully.';
-            } catch (PDOException $e) {
-                $error = 'Error adding user: ' . $e->getMessage();
+            } else {
+                $error = 'Please provide username and password.';
             }
-        } else {
-            $error = 'Please provide username and password.';
+        } elseif (isset($_POST['delete_user'])) {
+            $user_id = $_POST['user_id'] ?? '';
+            if ($user_id && $user_id != $_SESSION['user_id']) {  // Don't delete self
+                $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+                $stmt->execute([$user_id]);
+                $success = 'User deleted successfully.';
+            } else {
+                $error = 'Cannot delete this user.';
+            }
         }
-    } elseif (isset($_POST['delete_user'])) {
-        $user_id = $_POST['user_id'] ?? '';
-        if ($user_id && $user_id != $_SESSION['user_id']) {  // Don't delete self
-            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-            $stmt->execute([$user_id]);
-            $success = 'User deleted successfully.';
-        } else {
-            $error = 'Cannot delete this user.';
-        }
+    } catch (PDOException $e) {
+        $error = 'Database error: ' . $e->getMessage();
     }
 }
 
 // Get all users
-$stmt = $pdo->query("SELECT id, username FROM users ORDER BY username");
-$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $stmt = $pdo->query("SELECT id, username FROM users ORDER BY username");
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = 'Database error: ' . $e->getMessage();
+    $users = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -60,7 +68,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <form method="post">
             <input type="text" name="username" placeholder="Username" required>
             <input type="password" name="password" placeholder="Password" required>
-            <button type="submit" name="add_user">Add User</button>
+            <button type="submit" name="add_user" value="1">Add User</button>
         </form>
 
         <h2>Existing Users</h2>
@@ -87,5 +95,58 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <p><a href="index.php">Back to Dashboard</a></p>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const errorP = document.querySelector('.error');
+        const successP = document.querySelector('.success');
+        const userList = document.querySelector('ul');
+
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const submitter = e.submitter;
+                if (submitter && submitter.name) {
+                    formData.append(submitter.name, submitter.value || '1');
+                }
+                
+                fetch('user_management.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(html => {
+                    if (!html.includes('User Management')) {
+                        window.location.href = 'login.php';
+                        return;
+                    }
+                    // Update messages
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    const newError = tempDiv.querySelector('.error');
+                    const newSuccess = tempDiv.querySelector('.success');
+                    const newList = tempDiv.querySelector('ul');
+                    
+                    if (newSuccess) {
+                        // Reload to show updated list
+                        location.reload();
+                    } else if (newError) {
+                        errorP.textContent = newError.textContent;
+                        errorP.style.display = 'block';
+                        successP.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    errorP.textContent = 'An error occurred. Please try again.';
+                    errorP.style.display = 'block';
+                    successP.style.display = 'none';
+                });
+            });
+        });
+    });
+    </script>
 </body>
 </html>
