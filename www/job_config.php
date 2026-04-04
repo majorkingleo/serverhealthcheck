@@ -77,7 +77,7 @@ try {
         <p>Configure the execution interval (in minutes) and command line parameters for each check script.</p>
 
         <h2>Add New Job</h2>
-        <form method="post">
+        <form method="post" class="add-job-form">
             <label>Script Name: <input type="text" name="new_script_name" placeholder="e.g., check_new.py" required></label>
             <label>Interval (minutes): <input type="number" name="new_interval_minutes" value="5" min="1" required></label>
             <label>Parameters: <input type="text" name="new_parameters" placeholder="e.g., 80 90"></label>
@@ -90,14 +90,18 @@ try {
         <?php foreach ($checks as $check): ?>
             <div class="check-config">
                 <h3><?php echo htmlspecialchars($check['script_name']); ?></h3>
-                <form method="post">
+                <form method="post" class="job-row-form">
                     <input type="hidden" name="script_name" value="<?php echo htmlspecialchars($check['script_name']); ?>">
-                    <label>Interval (minutes): <input type="number" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required></label>
-                    <label>Parameters: <input type="text" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90"></label>
-                    <label>Target Table: <input type="text" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>"></label>
-                    <label><input type="checkbox" name="enabled" <?php echo $check['enabled'] ? 'checked' : ''; ?>> Enabled</label>
-                    <button type="submit" name="update">Update</button>
-                    <button type="submit" name="delete" onclick="return confirm('Are you sure you want to delete this job?')">Delete</button>
+                    <div class="job-fields">
+                        <label>Interval: <input type="number" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required></label>
+                        <label>Params: <input type="text" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90"></label>
+                        <label>Table: <input type="text" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>"></label>
+                        <label><input type="checkbox" name="enabled" <?php echo $check['enabled'] ? 'checked' : ''; ?>> Enabled</label>
+                    </div>
+                    <div class="job-actions">
+                        <button type="submit" name="update" value="1" class="icon-btn icon-update" title="Update job" aria-label="Update job">&#9998;</button>
+                        <button type="submit" name="delete" value="1" class="icon-btn icon-delete" title="Delete job" aria-label="Delete job" onclick="return confirm('Are you sure you want to delete this job?')">&#128465;</button>
+                    </div>
                 </form>
             </div>
         <?php endforeach; ?>
