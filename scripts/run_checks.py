@@ -137,6 +137,23 @@ def execute_check(check):
         return "UNKNOWN", f"Execution failed: {exc}"
 
 
+def _parse_and_store_disk(cur, message: str):
+    """Parse check_disk.py perfdata and insert per-mountpoint rows into disk_usage."""
+    if " | " not in message:
+        return
+    perfdata = message.split(" | ", 1)[1]
+    # format: label=usedMB;warnMB;critMB;0;totalMB
+    for m in re.finditer(r'(\S+?)=(\d+)MB;(\d+);(\d+);0;(\d+)', perfdata):
+        label, used, warn, crit, total = m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5))
+        # label is the mountpoint with leading '/' stripped and inner '/' replaced by '_'
+        # Store as-is so round-trips with different path separators are unambiguous
+        mountpoint = '/' + label if not label.startswith('/') else label
+        cur.execute(
+            "INSERT INTO disk_usage (mountpoint, used_mb, total_mb, warn_mb, crit_mb, run_at) VALUES (?, ?, ?, ?, ?, NOW())",
+            (mountpoint, used, total, warn, crit),
+        )
+
+
 def _parse_and_store_smart(cur, message: str):
     """Parse check_smart.py stdout and insert per-disk rows into smart_results / smart_metrics."""
     parts = message.split(" | ", 1)
@@ -184,6 +201,10 @@ def write_result(conn, check, status: str, message: str):
     # For the SMART check, also persist per-disk detail rows.
     if check["script_name"] == "check_smart.py":
         _parse_and_store_smart(cur, message)
+
+    # For the disk check, persist per-mountpoint usage rows.
+    if check["script_name"] == "check_disk.py":
+        _parse_and_store_disk(cur, message)
 
 
 def update_schedule(conn, check):

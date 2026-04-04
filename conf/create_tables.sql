@@ -80,3 +80,15 @@ CREATE TABLE IF NOT EXISTS smart_metrics (
     unit VARCHAR(10) NULL,
     INDEX idx_smart_metrics_dev (device, metric, run_at)
 );
+
+-- Disk usage history, one row per mount point per run
+CREATE TABLE IF NOT EXISTS disk_usage (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    mountpoint VARCHAR(255) NOT NULL,
+    used_mb BIGINT NOT NULL,
+    total_mb BIGINT NOT NULL,
+    warn_mb BIGINT NOT NULL,
+    crit_mb BIGINT NOT NULL,
+    INDEX idx_disk_usage_mp (mountpoint, run_at)
+);

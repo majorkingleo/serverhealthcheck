@@ -31,6 +31,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 }
 
 $is_smart = ($check_name === 'check_smart.py');
+$is_disk  = ($check_name === 'check_disk.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -70,6 +71,27 @@ if ($is_smart) {
     sort($smart_metric_devices);
     $smart_metric_names = array_keys($smart_metric_units);
 }
+
+if ($is_disk) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date, mountpoint, ROUND(AVG(used_mb)) AS avg_used, ROUND(AVG(total_mb)) AS avg_total
+         FROM disk_usage
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at), mountpoint
+         ORDER BY date, mountpoint"
+    );
+    $disk_usage = [];
+    $disk_mounts = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $disk_usage[$row['date']][$row['mountpoint']] = [
+            'used'  => (int)$row['avg_used'],
+            'total' => (int)$row['avg_total'],
+        ];
+        $disk_mounts[$row['mountpoint']] = true;
+    }
+    $disk_mounts = array_keys($disk_mounts);
+    sort($disk_mounts);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -108,6 +130,16 @@ if ($is_smart) {
                     <button class="chart-expand-btn" data-chart="smartTemp" title="Expand" aria-label="Expand">+</button>
                 </div>
                 <canvas id="smartTempChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_disk): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Disk Usage per Mount (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="diskUsage" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="diskUsageChart"></canvas>
             </div>
             <?php endif; ?>
         </div>
@@ -225,12 +257,56 @@ if ($is_smart) {
 
         <?php endif; ?>
 
+        <?php if ($is_disk): ?>
+        // --- Disk usage chart (used % per mountpoint per day) ---
+        <?php
+        $diskPalette = ['#007bff','#fd7e14','#20c997','#e83e8c','#6f42c1','#17a2b8','#ffc107','#dc3545'];
+        echo "const diskDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        echo "const diskDatasets = [];\n";
+        foreach ($disk_mounts as $idx => $mp) {
+            $color = $diskPalette[$idx % count($diskPalette)];
+            $data = [];
+            for ($i = 0; $i < 30; $i++) {
+                $date = date('Y-m-d', strtotime("$start +$i days"));
+                $used  = $disk_usage[$date][$mp]['used']  ?? null;
+                $total = $disk_usage[$date][$mp]['total'] ?? null;
+                $pct   = ($total && $used !== null) ? round($used / $total * 100, 1) : null;
+                $data[] = $pct;
+            }
+            echo "diskDatasets.push({ label: " . json_encode($mp) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
+        }
+        ?>
+
+        const diskUsageChartConfig = {
+            type: 'line',
+            data: { labels: diskDates, datasets: diskDatasets },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        min: 0, max: 100,
+                        title: { display: true, text: 'Usage (%)' },
+                        ticks: { callback: v => v + '%' }
+                    }
+                },
+                plugins: {
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y + '%' : 'N/A') } }
+                }
+            }
+        };
+        new Chart(document.getElementById('diskUsageChart').getContext('2d'), diskUsageChartConfig);
+
+        <?php endif; ?>
+
         // Chart expand overlay
         const chartConfigs = {
             stats:       { config: statsChartConfig,       title: <?php echo json_encode(htmlspecialchars($title) . ' — Status Timeline (Last 30 days)'); ?> },
             <?php if ($is_smart): ?>
             smartHealth: { config: smartHealthChartConfig, title: 'SMART — Disk Health per Day (Last 30 days)' },
             smartTemp:   { config: smartTempChartConfig,   title: 'SMART — Temperature per Day (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_disk): ?>
+            diskUsage:   { config: diskUsageChartConfig,   title: 'Disk Usage per Mount (Last 30 days)' },
             <?php endif; ?>
         };
 
