@@ -34,6 +34,7 @@ $is_smart = ($check_name === 'check_smart.py');
 $is_disk  = ($check_name === 'check_disk.py');
 $is_cpu   = ($check_name === 'check_cpu.py');
 $is_ram   = ($check_name === 'check_ram.py');
+$is_proc  = ($check_name === 'check_processes.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -132,6 +133,27 @@ if ($is_ram) {
         ];
     }
 }
+
+if ($is_proc) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date,
+                ROUND(AVG(process_count)) AS avg_count,
+                MAX(process_count) AS max_count,
+                MIN(process_count) AS min_count
+         FROM process_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at)
+         ORDER BY date"
+    );
+    $proc_data = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $proc_data[$row['date']] = [
+            'avg' => (int)$row['avg_count'],
+            'max' => (int)$row['max_count'],
+            'min' => (int)$row['min_count'],
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -200,6 +222,16 @@ if ($is_ram) {
                     <button class="chart-expand-btn" data-chart="ramUsage" title="Expand" aria-label="Expand">+</button>
                 </div>
                 <canvas id="ramUsageChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_proc): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>Process Count (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="procCount" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="procCountChart"></canvas>
             </div>
             <?php endif; ?>
         </div>
@@ -426,6 +458,37 @@ if ($is_ram) {
 
         <?php endif; ?>
 
+        <?php if ($is_proc): ?>
+        // --- Process count chart ---
+        <?php
+        echo "const procDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        $procAvg = array_map(fn($i) => $proc_data[date('Y-m-d', strtotime("$start +$i days"))]['avg'] ?? null, range(0, 29));
+        $procMax = array_map(fn($i) => $proc_data[date('Y-m-d', strtotime("$start +$i days"))]['max'] ?? null, range(0, 29));
+        $procMin = array_map(fn($i) => $proc_data[date('Y-m-d', strtotime("$start +$i days"))]['min'] ?? null, range(0, 29));
+        echo "const procAvg = " . json_encode($procAvg) . ";\n";
+        echo "const procMax = " . json_encode($procMax) . ";\n";
+        echo "const procMin = " . json_encode($procMin) . ";\n";
+        ?>
+
+        const procCountChartConfig = {
+            type: 'line',
+            data: {
+                labels: procDates,
+                datasets: [
+                    { label: 'Avg',  data: procAvg, borderColor: '#007bff', backgroundColor: '#007bff22', fill: false, spanGaps: true },
+                    { label: 'Max',  data: procMax, borderColor: '#dc3545', backgroundColor: '#dc354522', fill: false, spanGaps: true, borderDash: [4,3] },
+                    { label: 'Min',  data: procMin, borderColor: '#28a745', backgroundColor: '#28a74522', fill: false, spanGaps: true, borderDash: [4,3] },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Process Count' }, ticks: { precision: 0 } } }
+            }
+        };
+        new Chart(document.getElementById('procCountChart').getContext('2d'), procCountChartConfig);
+
+        <?php endif; ?>
+
         // Chart expand overlay
         const chartConfigs = {
             stats:       { config: statsChartConfig,       title: <?php echo json_encode(htmlspecialchars($title) . ' — Status Timeline (Last 30 days)'); ?> },
@@ -441,6 +504,9 @@ if ($is_ram) {
             <?php endif; ?>
             <?php if ($is_ram): ?>
             ramUsage:    { config: ramUsageChartConfig,    title: 'RAM Usage (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_proc): ?>
+            procCount:   { config: procCountChartConfig,   title: 'Process Count (Last 30 days)' },
             <?php endif; ?>
         };
 

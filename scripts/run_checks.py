@@ -203,6 +203,16 @@ def _parse_and_store_ram(cur, message: str):
         )
 
 
+def _parse_and_store_processes(cur, message: str):
+    """Parse check_processes.py perfdata and insert a row into process_stats."""
+    m = re.search(r'processes=(\d+)', message)
+    if m:
+        cur.execute(
+            "INSERT INTO process_stats (process_count, run_at) VALUES (?, NOW())",
+            (int(m.group(1)),),
+        )
+
+
 def write_result(conn, check, status: str, message: str):
     cur = conn.cursor()
 
@@ -237,6 +247,10 @@ def write_result(conn, check, status: str, message: str):
     # For the RAM check, persist RAM usage rows.
     if check["script_name"] == "check_ram.py":
         _parse_and_store_ram(cur, message)
+
+    # For the process check, persist process count rows.
+    if check["script_name"] == "check_processes.py":
+        _parse_and_store_processes(cur, message)
 
 
 def update_schedule(conn, check):

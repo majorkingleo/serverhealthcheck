@@ -112,6 +112,14 @@ CREATE TABLE IF NOT EXISTS ram_stats (
     INDEX idx_ram_stats_run (run_at)
 );
 
+-- Process count history, one row per run
+CREATE TABLE IF NOT EXISTS process_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    process_count INT NOT NULL,
+    INDEX idx_process_stats_run (run_at)
+);
+
 -- Default check configurations for CPU and RAM
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
 ('check_cpu.py', 'CPU Load', 5, '2.0 4.0', 0),
