@@ -226,22 +226,25 @@ if ($is_db) {
 }
 
 if ($is_cert) {
+    // Get warn/crit thresholds from the check's parameters column
+    $p_stmt = $pdo->prepare("SELECT parameters FROM checks WHERE script_name = 'check_cert.py'");
+    $p_stmt->execute();
+    $cert_params = preg_split('/\s+/', trim($p_stmt->fetchColumn() ?: '14 7'));
+    $cert_warn = (int)($cert_params[0] ?? 14);
+    $cert_crit = (int)($cert_params[1] ?? 7);
+
+    // Latest days_left per host from the most recent run
     $stmt = $pdo->query(
-        "SELECT DATE(run_at) AS date, host, port, ROUND(AVG(days_left)) AS avg_days
-         FROM cert_stats
-         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-         GROUP BY DATE(run_at), host, port
-         ORDER BY date, host, port"
+        "SELECT c1.host, c1.port, c1.days_left
+         FROM cert_stats c1
+         INNER JOIN (
+             SELECT host, port, MAX(run_at) AS latest
+             FROM cert_stats
+             GROUP BY host, port
+         ) c2 ON c1.host = c2.host AND c1.port = c2.port AND c1.run_at = c2.latest
+         ORDER BY c1.host, c1.port"
     );
-    $cert_data  = [];
-    $cert_hosts = [];
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $key = $row['host'] . ':' . $row['port'];
-        $cert_data[$row['date']][$key] = (int)$row['avg_days'];
-        $cert_hosts[$key] = true;
-    }
-    $cert_hosts = array_keys($cert_hosts);
-    sort($cert_hosts);
+    $cert_current = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 if ($is_updates) {
@@ -388,16 +391,6 @@ if ($is_zombies) {
             <?php endforeach; ?>
             <?php endif; ?>
 
-            <?php if ($is_cert): ?>
-            <div class="chart-container">
-                <div class="chart-container-header">
-                    <h2>TLS Certificate &mdash; Days to Expiry (Last 30 days)</h2>
-                    <button class="chart-expand-btn" data-chart="certExpiry" title="Expand" aria-label="Expand">+</button>
-                </div>
-                <canvas id="certExpiryChart"></canvas>
-            </div>
-            <?php endif; ?>
-
             <?php if ($is_updates): ?>
             <div class="chart-container">
                 <div class="chart-container-header">
@@ -418,6 +411,27 @@ if ($is_zombies) {
             </div>
             <?php endif; ?>
         </div>
+
+        <?php if ($is_cert && !empty($cert_current)): ?>
+        <div class="checks-list">
+            <h2>TLS Certificates <span class="checks-subtitle">(current state)</span></h2>
+            <div class="status-widgets">
+                <?php foreach ($cert_current as $cert):
+                    $days = (int)$cert['days_left'];
+                    if ($days <= $cert_crit)       { $status = 'ERROR'; $icon = '&#10007;'; }
+                    elseif ($days <= $cert_warn)   { $status = 'WARN';  $icon = '&#9888;';  }
+                    else                           { $status = 'OK';    $icon = '&#10003;'; }
+                    $s = strtolower($status);
+                ?>
+                <span class="status-widget status-<?= $s ?>">
+                    <span class="status-widget-icon"><?= $icon ?></span>
+                    <span class="status-widget-title"><?= htmlspecialchars($cert['host']) ?></span>
+                    <span class="status-widget-badge"><?= $days ?>d</span>
+                </span>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <?php if ($is_svc && !empty($svc_units)): ?>
         <div class="checks-list">
@@ -781,34 +795,6 @@ if ($is_zombies) {
 
         <?php endif; ?>
 
-        <?php if ($is_cert): ?>
-        // --- TLS certificate days-to-expiry chart ---
-        <?php
-        $certPalette = ['#007bff','#fd7e14','#20c997','#e83e8c','#6f42c1','#17a2b8','#ffc107','#dc3545'];
-        echo "const certDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
-        echo "const certDatasets = [];\n";
-        foreach ($cert_hosts as $idx => $hostkey) {
-            $color = $certPalette[$idx % count($certPalette)];
-            $data  = array_map(
-                fn($i) => $cert_data[date('Y-m-d', strtotime("$start +$i days"))][$hostkey] ?? null,
-                range(0, 29)
-            );
-            echo "certDatasets.push({ label: " . json_encode($hostkey) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
-        }
-        ?>
-        const certExpiryChartConfig = {
-            type: 'line',
-            data: { labels: certDates, datasets: certDatasets },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Days to Expiry' }, ticks: { precision: 0 } }
-                }
-            }
-        };
-        new Chart(document.getElementById('certExpiryChart').getContext('2d'), certExpiryChartConfig);
-        <?php endif; ?>
-
         <?php if ($is_updates): ?>
         // --- Pending updates chart ---
         <?php
@@ -889,9 +875,7 @@ if ($is_zombies) {
             <?= $jsKey ?>: { config: <?= $jsVar ?>, title: <?= json_encode('MariaDB ' . $schema . ' — Rows per Table (Last 30 days)') ?> },
             <?php endforeach; ?>
             <?php endif; ?>
-            <?php if ($is_cert): ?>
-            certExpiry:     { config: certExpiryChartConfig,     title: 'TLS Certificate — Days to Expiry (Last 30 days)' },
-            <?php endif; ?>
+
             <?php if ($is_updates): ?>
             pendingUpdates: { config: pendingUpdatesChartConfig, title: 'Pending Updates (Last 30 days)' },
             <?php endif; ?>

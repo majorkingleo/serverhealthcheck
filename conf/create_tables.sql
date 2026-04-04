@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS zombie_stats (
 
 -- Default check configurations for cert, updates, reboot, and zombie checks
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
-('check_cert.py',    'TLS Certificate',  60, 'localhost:443 14 7', 0),
+('check_cert.py',    'TLS Certificate',  60, '14 7', 0),
 ('check_updates.py', 'Pending Updates',  60, '10 50',              0),
 ('check_reboot.py',  'Reboot Required',  60, '',                   0),
 ('check_zombies.py', 'Zombie Processes',  5, '5 10',               0)
