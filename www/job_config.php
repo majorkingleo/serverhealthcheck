@@ -76,6 +76,21 @@ try {
             background-color: #fff59d;
         }
 
+        .field-locked {
+            background-color: #e5e5e5;
+            color: #555;
+        }
+
+        .field-locked-label {
+            background-color: #e5e5e5;
+            border-radius: 4px;
+            padding: 0.2rem 0.35rem;
+        }
+
+        .field-locked[type="checkbox"] {
+            accent-color: #9e9e9e;
+        }
+
         .sticky-top-right-btn {
             position: fixed;
             top: 1rem;
@@ -123,17 +138,18 @@ try {
                 <form method="post" class="job-row-form">
                     <input type="hidden" name="script_name" value="<?php echo htmlspecialchars($check['script_name']); ?>">
                     <div class="job-fields">
-                        <label>Title: <input type="text" name="title" value="<?php echo htmlspecialchars($check['title'] ?? $check['script_name']); ?>"></label>
-                        <label>Interval: <input type="number" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required></label>
-                        <label>Params: <input type="text" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90"></label>
-                        <label>Table: <input type="text" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>"></label>
-                        <label>Last: <input type="text" value="<?php echo htmlspecialchars($check['last_run'] ?? ''); ?>" readonly></label>
-                        <label>Next: <input type="text" value="<?php echo htmlspecialchars($check['next_run'] ?? ''); ?>" readonly></label>
-                        <label><input type="checkbox" name="enabled" <?php echo $check['enabled'] ? 'checked' : ''; ?>> Enabled</label>
-                        <label><input type="checkbox" name="sudo" <?php echo !empty($check['sudo']) ? 'checked' : ''; ?>> Sudo</label>
+                        <label>Title: <input type="text" class="row-editable field-locked" name="title" value="<?php echo htmlspecialchars($check['title'] ?? $check['script_name']); ?>" readonly></label>
+                        <label>Interval: <input type="number" class="row-editable field-locked" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required readonly></label>
+                        <label>Params: <input type="text" class="row-editable field-locked" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90" readonly></label>
+                        <label>Table: <input type="text" class="row-editable field-locked" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>" readonly></label>
+                        <label>Last: <input type="text" class="field-locked" value="<?php echo htmlspecialchars($check['last_run'] ?? ''); ?>" readonly></label>
+                        <label>Next: <input type="text" class="field-locked" value="<?php echo htmlspecialchars($check['next_run'] ?? ''); ?>" readonly></label>
+                        <label class="field-locked-label"><input type="checkbox" class="row-editable field-locked" name="enabled" <?php echo $check['enabled'] ? 'checked' : ''; ?> disabled> Enabled</label>
+                        <label class="field-locked-label"><input type="checkbox" class="row-editable field-locked" name="sudo" <?php echo !empty($check['sudo']) ? 'checked' : ''; ?> disabled> Sudo</label>
                     </div>
                     <div class="job-actions">
-                        <button type="submit" name="update" value="1" class="icon-btn icon-apply" title="Apply changes" aria-label="Apply changes">&#10003;</button>
+                        <button type="button" class="icon-btn icon-edit row-edit-toggle" title="Edit row" aria-label="Edit row">&#9998;</button>
+                        <button type="submit" name="update" value="1" class="icon-btn icon-apply" title="Apply changes" aria-label="Apply changes" disabled>&#10003;</button>
                         <button type="submit" name="schedule_now" value="1" class="icon-btn icon-schedule" title="Schedule now" aria-label="Schedule now">&#9200;</button>
                         <button type="submit" name="delete" value="1" class="icon-btn icon-delete" title="Delete job" aria-label="Delete job" onclick="return confirm('Are you sure you want to delete this job?')">&#128465;</button>
                     </div>
@@ -166,7 +182,7 @@ try {
             field.classList.toggle('field-modified', currentValue !== originalValue);
         }
 
-        document.querySelectorAll('.job-row-form input:not([type="hidden"]):not([readonly])').forEach(field => {
+        document.querySelectorAll('.job-row-form .row-editable').forEach(field => {
             field.dataset.originalValue = getFieldValue(field);
             updateModifiedState(field);
 
@@ -176,6 +192,33 @@ try {
 
             field.addEventListener('change', function() {
                 updateModifiedState(field);
+            });
+        });
+
+        document.querySelectorAll('.row-edit-toggle').forEach(button => {
+            button.addEventListener('click', function() {
+                const form = button.closest('.job-row-form');
+                const editableFields = form.querySelectorAll('.row-editable');
+                const applyButton = form.querySelector('button[name="update"]');
+
+                editableFields.forEach(field => {
+                    if (field.type === 'checkbox') {
+                        field.disabled = false;
+                        const label = field.closest('label');
+                        if (label) {
+                            label.classList.remove('field-locked-label');
+                        }
+                    } else {
+                        field.readOnly = false;
+                    }
+                    field.classList.remove('field-locked');
+                    updateModifiedState(field);
+                });
+
+                if (applyButton) {
+                    applyButton.disabled = false;
+                }
+                button.disabled = true;
             });
         });
 

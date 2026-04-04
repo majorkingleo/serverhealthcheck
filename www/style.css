@@ -256,6 +256,16 @@ button:hover {
     border-color: #6f42c1;
 }
 
+.icon-edit {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+.icon-edit:hover {
+    background: #d39e00;
+}
+
 .icon-delete:hover {
     background: #b02a37;
 }
@@ -277,6 +287,17 @@ button:hover {
 .dark-theme .icon-schedule {
     background: #59359c;
     border-color: #59359c;
+}
+
+.dark-theme .icon-edit {
+    background: #d39e00;
+    border-color: #d39e00;
+    color: #212529;
+}
+
+.icon-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 @media (max-width: 900px) {
