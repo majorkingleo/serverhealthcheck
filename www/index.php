@@ -4,8 +4,8 @@ requireLogin();
 
 $pdo = getDB();
 
-// Get recent health checks
-$stmt = $pdo->query("SELECT check_name, status, COUNT(*) as count FROM health_checks WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) GROUP BY check_name, status ORDER BY check_name, status");
+// Get recent health checks using configured titles from checks table
+$stmt = $pdo->query("SELECT h.check_name, COALESCE(c.title, h.check_name) AS check_title, h.status, COUNT(*) as count FROM health_checks h LEFT JOIN checks c ON c.script_name = h.check_name WHERE h.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) GROUP BY h.check_name, check_title, h.status ORDER BY check_title, h.status");
 $checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get status counts for pie chart
@@ -68,7 +68,7 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
                 <tbody>
                     <?php foreach ($checks as $check): ?>
                         <tr class="status-<?php echo strtolower($check['status']); ?>">
-                            <td><?php echo htmlspecialchars($check['check_name']); ?></td>
+                            <td><?php echo htmlspecialchars($check['check_title']); ?></td>
                             <td><?php echo htmlspecialchars($check['status']); ?></td>
                             <td><?php echo $check['count']; ?></td>
                         </tr>

@@ -85,6 +85,11 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Job Configuration - Server Health</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .field-modified {
+            background-color: #fff59d;
+        }
+    </style>
 </head>
 <body class="subpage">
     <a href="index.php" class="sticky-back-btn">Back to Dashboard</a>
@@ -148,6 +153,29 @@ try {
         const errorP = document.querySelector('.error');
         const successP = document.querySelector('.success');
         const container = document.querySelector('.login-container');
+
+        function getFieldValue(field) {
+            return field.type === 'checkbox' ? String(field.checked) : field.value;
+        }
+
+        function updateModifiedState(field) {
+            const currentValue = getFieldValue(field);
+            const originalValue = field.dataset.originalValue;
+            field.classList.toggle('field-modified', currentValue !== originalValue);
+        }
+
+        document.querySelectorAll('.job-row-form input:not([type="hidden"]):not([readonly])').forEach(field => {
+            field.dataset.originalValue = getFieldValue(field);
+            updateModifiedState(field);
+
+            field.addEventListener('input', function() {
+                updateModifiedState(field);
+            });
+
+            field.addEventListener('change', function() {
+                updateModifiedState(field);
+            });
+        });
 
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', function(e) {
