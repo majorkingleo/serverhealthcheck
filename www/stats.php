@@ -174,7 +174,7 @@ if ($is_db) {
     $db_schemas = array_keys($db_schemas);
     sort($db_schemas);
 
-    // Widget 2: rows per individual table per day
+    // Widget per schema: rows per table per day, indexed by [date][schema][table]
     $stmt = $pdo->query(
         "SELECT DATE(run_at) AS date, table_schema, table_name, ROUND(AVG(row_count)) AS avg_rows
          FROM mariadb_table_stats
@@ -182,15 +182,16 @@ if ($is_db) {
          GROUP BY DATE(run_at), table_schema, table_name
          ORDER BY date, table_schema, table_name"
     );
-    $db_table_data = [];
-    $db_tables = []; // key: "schema.table"
+    $db_table_data = [];    // [date][schema][table] = rows
+    $db_schema_tables = []; // [schema] = [table, ...]
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $key = $row['table_schema'] . '.' . $row['table_name'];
-        $db_table_data[$row['date']][$key] = (int)$row['avg_rows'];
-        $db_tables[$key] = true;
+        $db_table_data[$row['date']][$row['table_schema']][$row['table_name']] = (int)$row['avg_rows'];
+        $db_schema_tables[$row['table_schema']][$row['table_name']] = true;
     }
-    $db_tables = array_keys($db_tables);
-    sort($db_tables);
+    foreach ($db_schema_tables as $schema => $tbls) {
+        ksort($tbls);
+        $db_schema_tables[$schema] = array_keys($tbls);
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -281,13 +282,17 @@ if ($is_db) {
                 </div>
                 <canvas id="dbSchemaRowsChart"></canvas>
             </div>
+            <?php foreach ($db_schemas as $schema):
+                $jsKey = 'dbTableRows_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $schema);
+            ?>
             <div class="chart-container">
                 <div class="chart-container-header">
-                    <h2>MariaDB Rows per Table (Last 30 days)</h2>
-                    <button class="chart-expand-btn" data-chart="dbTableRows" title="Expand" aria-label="Expand">+</button>
+                    <h2>MariaDB <?= htmlspecialchars($schema) ?> &mdash; Rows per Table (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="<?= htmlspecialchars($jsKey) ?>" title="Expand" aria-label="Expand">+</button>
                 </div>
-                <canvas id="dbTableRowsChart"></canvas>
+                <canvas id="<?= htmlspecialchars($jsKey) ?>Chart"></canvas>
             </div>
+            <?php endforeach; ?>
             <?php endif; ?>
         </div>
     </main>
@@ -570,28 +575,31 @@ if ($is_db) {
         };
         new Chart(document.getElementById('dbSchemaRowsChart').getContext('2d'), dbSchemaRowsChartConfig);
 
-        // --- MariaDB: rows per individual table per day ---
-        <?php
-        echo "const dbTableDatasets = [];\n";
-        foreach ($db_tables as $idx => $tbl) {
-            $color = $dbPalette[$idx % count($dbPalette)];
-            $data = array_map(
-                fn($i) => $db_table_data[date('Y-m-d', strtotime("$start +$i days"))][$tbl] ?? null,
-                range(0, 29)
-            );
-            echo "dbTableDatasets.push({ label: " . json_encode($tbl) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
-        }
+        // --- MariaDB: one chart per schema showing rows per table ---
+        <?php foreach ($db_schemas as $schema):
+            $jsKey  = 'dbTableRows_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $schema);
+            $jsVar  = $jsKey . 'ChartConfig';
+            $tables = $db_schema_tables[$schema] ?? [];
+            echo "const {$jsKey}Datasets = [];\n";
+            foreach ($tables as $idx => $tbl) {
+                $color = $dbPalette[$idx % count($dbPalette)];
+                $data  = array_map(
+                    fn($i) => $db_table_data[date('Y-m-d', strtotime("$start +$i days"))][$schema][$tbl] ?? null,
+                    range(0, 29)
+                );
+                echo "{$jsKey}Datasets.push({ label: " . json_encode($tbl) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
+            }
         ?>
-
-        const dbTableRowsChartConfig = {
+        const <?= $jsVar ?> = {
             type: 'line',
-            data: { labels: dbDates, datasets: dbTableDatasets },
+            data: { labels: dbDates, datasets: <?= $jsKey ?>Datasets },
             options: {
                 responsive: true,
                 scales: { y: { beginAtZero: true, title: { display: true, text: 'Row Count' }, ticks: { precision: 0 } } }
             }
         };
-        new Chart(document.getElementById('dbTableRowsChart').getContext('2d'), dbTableRowsChartConfig);
+        new Chart(document.getElementById('<?= $jsKey ?>Chart').getContext('2d'), <?= $jsVar ?>);
+        <?php endforeach; ?>
 
         <?php endif; ?>
 
@@ -615,8 +623,13 @@ if ($is_db) {
             procCount:   { config: procCountChartConfig,   title: 'Process Count (Last 30 days)' },
             <?php endif; ?>
             <?php if ($is_db): ?>
-            dbSchemaRows:{ config: dbSchemaRowsChartConfig, title: 'MariaDB Total Rows per Database (Last 30 days)' },
-            dbTableRows: { config: dbTableRowsChartConfig,  title: 'MariaDB Rows per Table (Last 30 days)' },
+            dbSchemaRows: { config: dbSchemaRowsChartConfig, title: 'MariaDB Total Rows per Database (Last 30 days)' },
+            <?php foreach ($db_schemas as $schema):
+                $jsKey = 'dbTableRows_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $schema);
+                $jsVar = $jsKey . 'ChartConfig';
+            ?>
+            <?= $jsKey ?>: { config: <?= $jsVar ?>, title: <?= json_encode('MariaDB ' . $schema . ' — Rows per Table (Last 30 days)') ?> },
+            <?php endforeach; ?>
             <?php endif; ?>
         };
 
