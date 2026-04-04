@@ -27,17 +27,6 @@ CREATE TABLE IF NOT EXISTS health_checks (
     UNIQUE KEY uq_health_check_name (check_name)
 );
 
--- Current health state table (one row per check)
-CREATE TABLE IF NOT EXISTS HEALTH (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    check_name VARCHAR(100) UNIQUE NOT NULL,
-    title VARCHAR(150) NOT NULL,
-    state ENUM('OK', 'WARNING', 'ERROR', 'UNKNOWN') NOT NULL,
-    message TEXT,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_state (state)
-);
-
 -- Checks configuration table
 CREATE TABLE IF NOT EXISTS checks (
     id INT AUTO_INCREMENT PRIMARY KEY,

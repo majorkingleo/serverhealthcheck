@@ -108,22 +108,6 @@ def map_exit_code_to_status(exit_code: int) -> str:
     return "UNKNOWN"
 
 
-def parse_main_state(output: str, fallback_status: str) -> str:
-    upper = (output or "").upper()
-    if "WARNIING" in upper or "WARNING" in upper or " WARN " in f" {upper} ":
-        return "WARNING"
-    if "ERROR" in upper:
-        return "ERROR"
-    if "OK" in upper:
-        return "OK"
-
-    if fallback_status == "WARN":
-        return "WARNING"
-    if fallback_status in ("OK", "ERROR", "UNKNOWN"):
-        return fallback_status
-    return "UNKNOWN"
-
-
 def execute_check(check):
     script_path = SCRIPT_DIR / check["script_name"]
     if not script_path.exists():
@@ -188,16 +172,6 @@ def write_result(conn, check, status: str, message: str):
             )
 
 
-def upsert_health_state(conn, check, state: str, message: str):
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO HEALTH (check_name, title, state, message, updated_at) "
-        "VALUES (?, ?, ?, ?, NOW()) "
-        "ON DUPLICATE KEY UPDATE title = VALUES(title), state = VALUES(state), message = VALUES(message), updated_at = NOW()",
-        (check["script_name"], check["title"], state, message),
-    )
-
-
 def update_schedule(conn, check):
     interval_minutes = max(1, int(check["interval_minutes"]))
     next_run = datetime.datetime.now() + datetime.timedelta(minutes=interval_minutes)
@@ -238,12 +212,10 @@ def main():
     for check in checks:
         try:
             status, message = execute_check(check)
-            main_state = parse_main_state(message, status)
             write_result(conn, check, status, message)
-            upsert_health_state(conn, check, main_state, message)
             update_schedule(conn, check)
             conn.commit()
-            print(f"{check['script_name']}: {main_state} ({status}) - {message}")
+            print(f"{check['script_name']}: {status} - {message}")
         except Exception as exc:
             conn.rollback()
             print(f"{check['script_name']}: runner error: {exc}", file=sys.stderr)
