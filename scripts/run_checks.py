@@ -192,7 +192,8 @@ def _parse_and_store_mariadb(cur, message: str):
 
 
 def _parse_and_store_services(cur, message: str):
-    """Parse check_services.py perfdata and insert a row into service_stats."""
+    """Parse check_services.py perfdata and insert a row into service_stats.
+    Also upserts per-unit states into service_unit_states from the ||| section."""
     m_failed   = re.search(r'failed=(\d+)',    message)
     m_active   = re.search(r'\bactive=(\d+)',  message)
     m_inactive = re.search(r'inactive=(\d+)',  message)
@@ -201,6 +202,15 @@ def _parse_and_store_services(cur, message: str):
             "INSERT INTO service_stats (failed_count, active_count, inactive_count, run_at) VALUES (?, ?, ?, NOW())",
             (int(m_failed.group(1)), int(m_active.group(1)), int(m_inactive.group(1))),
         )
+    # Parse per-unit states from the ||| section
+    if ' ||| ' in message:
+        units_section = message.split(' ||| ', 1)[1]
+        for m in re.finditer(r'(\S+\.service)=(\w+)', units_section):
+            cur.execute(
+                "INSERT INTO service_unit_states (unit_name, state, run_at) VALUES (?, ?, NOW()) "
+                "ON DUPLICATE KEY UPDATE state = VALUES(state), run_at = NOW()",
+                (m.group(1), m.group(2)),
+            )
 
 
 def write_result(conn, check, status: str, message: str):

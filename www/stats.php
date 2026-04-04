@@ -176,6 +176,12 @@ if ($is_svc) {
             'inactive' => (int)$row['avg_inactive'],
         ];
     }
+
+    // Latest state per unit for the service-states widget
+    $stmt2 = $pdo->query(
+        "SELECT unit_name, state FROM service_unit_states ORDER BY state, unit_name"
+    );
+    $svc_units = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 }
 
 if ($is_db) {
@@ -327,6 +333,30 @@ if ($is_db) {
             <?php endforeach; ?>
             <?php endif; ?>
         </div>
+
+        <?php if ($is_svc && !empty($svc_units)): ?>
+        <div class="checks-list">
+            <h2>Service States <span class="checks-subtitle">(last check)</span></h2>
+            <div class="status-widgets">
+                <?php foreach ($svc_units as $unit):
+                    $state = $unit['state'];
+                    $css   = match(true) {
+                        $state === 'active'   => 'ok',
+                        $state === 'failed'   => 'error',
+                        in_array($state, ['activating', 'reloading', 'deactivating']) => 'warn',
+                        default               => 'unknown',
+                    };
+                    $icon  = $state === 'active' ? '&#10003;' : ($state === 'failed' ? '&#10007;' : '?');
+                ?>
+                <span class="status-widget status-<?= $css ?>">
+                    <span class="status-widget-icon"><?= $icon ?></span>
+                    <span class="status-widget-title"><?= htmlspecialchars($unit['unit_name']) ?></span>
+                    <span class="status-widget-badge"><?= htmlspecialchars($state) ?></span>
+                </span>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </main>
 
     <div id="widget-overlay" class="widget-overlay" hidden>

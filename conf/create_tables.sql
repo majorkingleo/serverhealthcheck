@@ -157,3 +157,12 @@ CREATE TABLE IF NOT EXISTS service_stats (
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
 ('check_services.py', 'Service Status', 5, '1 1', 0)
 ON DUPLICATE KEY UPDATE script_name=script_name;
+
+-- Latest state per systemd service unit (upsert-only, no history)
+CREATE TABLE IF NOT EXISTS service_unit_states (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    unit_name VARCHAR(255) NOT NULL,
+    state VARCHAR(20) NOT NULL,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_unit_name (unit_name)
+);
