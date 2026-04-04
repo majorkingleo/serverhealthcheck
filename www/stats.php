@@ -157,18 +157,37 @@ if ($is_proc) {
 }
 
 if ($is_db) {
+    // Widget 1: total rows per database (schema) per day
     $stmt = $pdo->query(
-        "SELECT DATE(run_at) AS date, table_name, ROUND(AVG(row_count)) AS avg_rows
+        "SELECT DATE(run_at) AS date, table_schema, ROUND(SUM(row_count)) AS total_rows
          FROM mariadb_table_stats
          WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-         GROUP BY DATE(run_at), table_name
-         ORDER BY date, table_name"
+         GROUP BY DATE(run_at), table_schema
+         ORDER BY date, table_schema"
+    );
+    $db_schema_data = [];
+    $db_schemas = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $db_schema_data[$row['date']][$row['table_schema']] = (int)$row['total_rows'];
+        $db_schemas[$row['table_schema']] = true;
+    }
+    $db_schemas = array_keys($db_schemas);
+    sort($db_schemas);
+
+    // Widget 2: rows per individual table per day
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date, table_schema, table_name, ROUND(AVG(row_count)) AS avg_rows
+         FROM mariadb_table_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at), table_schema, table_name
+         ORDER BY date, table_schema, table_name"
     );
     $db_table_data = [];
-    $db_tables = [];
+    $db_tables = []; // key: "schema.table"
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $db_table_data[$row['date']][$row['table_name']] = (int)$row['avg_rows'];
-        $db_tables[$row['table_name']] = true;
+        $key = $row['table_schema'] . '.' . $row['table_name'];
+        $db_table_data[$row['date']][$key] = (int)$row['avg_rows'];
+        $db_tables[$key] = true;
     }
     $db_tables = array_keys($db_tables);
     sort($db_tables);
@@ -257,7 +276,14 @@ if ($is_db) {
             <?php if ($is_db): ?>
             <div class="chart-container">
                 <div class="chart-container-header">
-                    <h2>MariaDB Table Rows (Last 30 days)</h2>
+                    <h2>MariaDB Total Rows per Database (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="dbSchemaRows" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="dbSchemaRowsChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>MariaDB Rows per Table (Last 30 days)</h2>
                     <button class="chart-expand-btn" data-chart="dbTableRows" title="Expand" aria-label="Expand">+</button>
                 </div>
                 <canvas id="dbTableRowsChart"></canvas>
@@ -519,24 +545,47 @@ if ($is_db) {
         <?php endif; ?>
 
         <?php if ($is_db): ?>
-        // --- MariaDB table row count chart ---
+        // --- MariaDB: total rows per schema per day ---
         <?php
         $dbPalette = ['#007bff','#fd7e14','#20c997','#e83e8c','#6f42c1','#17a2b8','#ffc107','#dc3545','#28a745','#343a40'];
         echo "const dbDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
-        echo "const dbDatasets = [];\n";
+        echo "const dbSchemaDatasets = [];\n";
+        foreach ($db_schemas as $idx => $schema) {
+            $color = $dbPalette[$idx % count($dbPalette)];
+            $data = array_map(
+                fn($i) => $db_schema_data[date('Y-m-d', strtotime("$start +$i days"))][$schema] ?? null,
+                range(0, 29)
+            );
+            echo "dbSchemaDatasets.push({ label: " . json_encode($schema) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
+        }
+        ?>
+
+        const dbSchemaRowsChartConfig = {
+            type: 'line',
+            data: { labels: dbDates, datasets: dbSchemaDatasets },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Rows' }, ticks: { precision: 0 } } }
+            }
+        };
+        new Chart(document.getElementById('dbSchemaRowsChart').getContext('2d'), dbSchemaRowsChartConfig);
+
+        // --- MariaDB: rows per individual table per day ---
+        <?php
+        echo "const dbTableDatasets = [];\n";
         foreach ($db_tables as $idx => $tbl) {
             $color = $dbPalette[$idx % count($dbPalette)];
             $data = array_map(
                 fn($i) => $db_table_data[date('Y-m-d', strtotime("$start +$i days"))][$tbl] ?? null,
                 range(0, 29)
             );
-            echo "dbDatasets.push({ label: " . json_encode($tbl) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
+            echo "dbTableDatasets.push({ label: " . json_encode($tbl) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
         }
         ?>
 
         const dbTableRowsChartConfig = {
             type: 'line',
-            data: { labels: dbDates, datasets: dbDatasets },
+            data: { labels: dbDates, datasets: dbTableDatasets },
             options: {
                 responsive: true,
                 scales: { y: { beginAtZero: true, title: { display: true, text: 'Row Count' }, ticks: { precision: 0 } } }
@@ -566,7 +615,8 @@ if ($is_db) {
             procCount:   { config: procCountChartConfig,   title: 'Process Count (Last 30 days)' },
             <?php endif; ?>
             <?php if ($is_db): ?>
-            dbTableRows: { config: dbTableRowsChartConfig, title: 'MariaDB Table Rows (Last 30 days)' },
+            dbSchemaRows:{ config: dbSchemaRowsChartConfig, title: 'MariaDB Total Rows per Database (Last 30 days)' },
+            dbTableRows: { config: dbTableRowsChartConfig,  title: 'MariaDB Rows per Table (Last 30 days)' },
             <?php endif; ?>
         };
 
