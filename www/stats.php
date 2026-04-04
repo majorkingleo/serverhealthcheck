@@ -179,7 +179,7 @@ if ($is_svc) {
 
     // Latest state per unit for the service-states widget
     $stmt2 = $pdo->query(
-        "SELECT unit_name, state FROM service_unit_states ORDER BY state, unit_name"
+        "SELECT unit_name, state FROM service_unit_states WHERE state != 'inactive' ORDER BY state, unit_name"
     );
     $svc_units = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 }
