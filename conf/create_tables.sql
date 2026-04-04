@@ -92,3 +92,28 @@ CREATE TABLE IF NOT EXISTS disk_usage (
     crit_mb BIGINT NOT NULL,
     INDEX idx_disk_usage_mp (mountpoint, run_at)
 );
+
+-- CPU load average history, one row per run
+CREATE TABLE IF NOT EXISTS cpu_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    load1 FLOAT NOT NULL,
+    load5 FLOAT NOT NULL,
+    load15 FLOAT NOT NULL,
+    INDEX idx_cpu_stats_run (run_at)
+);
+
+-- RAM usage history, one row per run
+CREATE TABLE IF NOT EXISTS ram_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used_mb BIGINT NOT NULL,
+    total_mb BIGINT NOT NULL,
+    INDEX idx_ram_stats_run (run_at)
+);
+
+-- Default check configurations for CPU and RAM
+INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
+('check_cpu.py', 'CPU Load', 5, '2.0 4.0', 0),
+('check_ram.py', 'RAM Usage', 5, '80 90', 0)
+ON DUPLICATE KEY UPDATE script_name=script_name;

@@ -179,6 +179,30 @@ def _parse_and_store_smart(cur, message: str):
         )
 
 
+def _parse_and_store_cpu(cur, message: str):
+    """Parse check_cpu.py perfdata and insert a row into cpu_stats."""
+    if " | " not in message:
+        return
+    m1  = re.search(r'load1=([0-9.]+)',  message)
+    m5  = re.search(r'load5=([0-9.]+)',  message)
+    m15 = re.search(r'load15=([0-9.]+)', message)
+    if m1 and m5 and m15:
+        cur.execute(
+            "INSERT INTO cpu_stats (load1, load5, load15, run_at) VALUES (?, ?, ?, NOW())",
+            (float(m1.group(1)), float(m5.group(1)), float(m15.group(1))),
+        )
+
+
+def _parse_and_store_ram(cur, message: str):
+    """Parse check_ram.py perfdata and insert a row into ram_stats."""
+    m = re.search(r'ram=(\d+)MB;\d+;\d+;0;(\d+)', message)
+    if m:
+        cur.execute(
+            "INSERT INTO ram_stats (used_mb, total_mb, run_at) VALUES (?, ?, NOW())",
+            (int(m.group(1)), int(m.group(2))),
+        )
+
+
 def write_result(conn, check, status: str, message: str):
     cur = conn.cursor()
 
@@ -205,6 +229,14 @@ def write_result(conn, check, status: str, message: str):
     # For the disk check, persist per-mountpoint usage rows.
     if check["script_name"] == "check_disk.py":
         _parse_and_store_disk(cur, message)
+
+    # For the CPU check, persist load average rows.
+    if check["script_name"] == "check_cpu.py":
+        _parse_and_store_cpu(cur, message)
+
+    # For the RAM check, persist RAM usage rows.
+    if check["script_name"] == "check_ram.py":
+        _parse_and_store_ram(cur, message)
 
 
 def update_schedule(conn, check):

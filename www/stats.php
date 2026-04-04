@@ -32,6 +32,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
 $is_smart = ($check_name === 'check_smart.py');
 $is_disk  = ($check_name === 'check_disk.py');
+$is_cpu   = ($check_name === 'check_cpu.py');
+$is_ram   = ($check_name === 'check_ram.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -92,6 +94,44 @@ if ($is_disk) {
     $disk_mounts = array_keys($disk_mounts);
     sort($disk_mounts);
 }
+
+if ($is_cpu) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date,
+                ROUND(AVG(load1), 2)  AS avg1,
+                ROUND(AVG(load5), 2)  AS avg5,
+                ROUND(AVG(load15), 2) AS avg15
+         FROM cpu_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at)
+         ORDER BY date"
+    );
+    $cpu_data = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $cpu_data[$row['date']] = [
+            'load1'  => (float)$row['avg1'],
+            'load5'  => (float)$row['avg5'],
+            'load15' => (float)$row['avg15'],
+        ];
+    }
+}
+
+if ($is_ram) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date, ROUND(AVG(used_mb)) AS avg_used, ROUND(AVG(total_mb)) AS avg_total
+         FROM ram_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at)
+         ORDER BY date"
+    );
+    $ram_data = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $ram_data[$row['date']] = [
+            'used'  => (int)$row['avg_used'],
+            'total' => (int)$row['avg_total'],
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -140,6 +180,26 @@ if ($is_disk) {
                     <button class="chart-expand-btn" data-chart="diskUsage" title="Expand" aria-label="Expand">+</button>
                 </div>
                 <canvas id="diskUsageChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_cpu): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>CPU Load Average (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="cpuLoad" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="cpuLoadChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_ram): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>RAM Usage (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="ramUsage" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="ramUsageChart"></canvas>
             </div>
             <?php endif; ?>
         </div>
@@ -298,6 +358,74 @@ if ($is_disk) {
 
         <?php endif; ?>
 
+        <?php if ($is_cpu): ?>
+        // --- CPU load average chart ---
+        <?php
+        echo "const cpuDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        $load1Data  = array_map(fn($i) => $cpu_data[date('Y-m-d', strtotime("$start +$i days"))]['load1']  ?? null, range(0, 29));
+        $load5Data  = array_map(fn($i) => $cpu_data[date('Y-m-d', strtotime("$start +$i days"))]['load5']  ?? null, range(0, 29));
+        $load15Data = array_map(fn($i) => $cpu_data[date('Y-m-d', strtotime("$start +$i days"))]['load15'] ?? null, range(0, 29));
+        echo "const cpuLoad1  = " . json_encode($load1Data)  . ";\n";
+        echo "const cpuLoad5  = " . json_encode($load5Data)  . ";\n";
+        echo "const cpuLoad15 = " . json_encode($load15Data) . ";\n";
+        ?>
+
+        const cpuLoadChartConfig = {
+            type: 'line',
+            data: {
+                labels: cpuDates,
+                datasets: [
+                    { label: 'Load 1m',  data: cpuLoad1,  borderColor: '#007bff', backgroundColor: '#007bff22', fill: false, spanGaps: true },
+                    { label: 'Load 5m',  data: cpuLoad5,  borderColor: '#fd7e14', backgroundColor: '#fd7e1422', fill: false, spanGaps: true },
+                    { label: 'Load 15m', data: cpuLoad15, borderColor: '#20c997', backgroundColor: '#20c99722', fill: false, spanGaps: true },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Load Average' } } }
+            }
+        };
+        new Chart(document.getElementById('cpuLoadChart').getContext('2d'), cpuLoadChartConfig);
+
+        <?php endif; ?>
+
+        <?php if ($is_ram): ?>
+        // --- RAM usage chart ---
+        <?php
+        echo "const ramDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        $ramPct = array_map(function($i) use ($start, $ram_data) {
+            $date  = date('Y-m-d', strtotime("$start +$i days"));
+            $used  = $ram_data[$date]['used']  ?? null;
+            $total = $ram_data[$date]['total'] ?? null;
+            return ($total && $used !== null) ? round($used / $total * 100, 1) : null;
+        }, range(0, 29));
+        echo "const ramPct = " . json_encode($ramPct) . ";\n";
+        ?>
+
+        const ramUsageChartConfig = {
+            type: 'line',
+            data: {
+                labels: ramDates,
+                datasets: [
+                    { label: 'RAM Used', data: ramPct, borderColor: '#6f42c1', backgroundColor: '#6f42c122', fill: true, spanGaps: true }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        min: 0, max: 100,
+                        title: { display: true, text: 'Usage (%)' },
+                        ticks: { callback: v => v + '%' }
+                    }
+                },
+                plugins: { tooltip: { callbacks: { label: ctx => 'RAM Used: ' + ctx.parsed.y + '%' } } }
+            }
+        };
+        new Chart(document.getElementById('ramUsageChart').getContext('2d'), ramUsageChartConfig);
+
+        <?php endif; ?>
+
         // Chart expand overlay
         const chartConfigs = {
             stats:       { config: statsChartConfig,       title: <?php echo json_encode(htmlspecialchars($title) . ' — Status Timeline (Last 30 days)'); ?> },
@@ -307,6 +435,12 @@ if ($is_disk) {
             <?php endif; ?>
             <?php if ($is_disk): ?>
             diskUsage:   { config: diskUsageChartConfig,   title: 'Disk Usage per Mount (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_cpu): ?>
+            cpuLoad:     { config: cpuLoadChartConfig,     title: 'CPU Load Average (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_ram): ?>
+            ramUsage:    { config: ramUsageChartConfig,    title: 'RAM Usage (Last 30 days)' },
             <?php endif; ?>
         };
 
