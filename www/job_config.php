@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (isset($_POST['update'])) {
             $script_name = $_POST['script_name'] ?? '';
+            $title = trim($_POST['title'] ?? '');
             $interval_minutes = (int)($_POST['interval_minutes'] ?? 5);
             $parameters = trim($_POST['parameters'] ?? '');
             $target_table = trim($_POST['target_table'] ?? 'health_checks');
@@ -22,12 +23,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $use_sudo = isset($_POST['sudo']) ? 1 : 0;
 
             if ($script_name) {
-                $stmt = $pdo->prepare("UPDATE checks SET interval_minutes = ?, parameters = ?, target_table = ?, enabled = ?, sudo = ? WHERE script_name = ?");
-                $stmt->execute([$interval_minutes, $parameters, $target_table, $enabled, $use_sudo, $script_name]);
+                if ($title === '') {
+                    $title = $script_name;
+                }
+                $stmt = $pdo->prepare("UPDATE checks SET title = ?, interval_minutes = ?, parameters = ?, target_table = ?, enabled = ?, sudo = ? WHERE script_name = ?");
+                $stmt->execute([$title, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo, $script_name]);
                 $success = 'Configuration updated successfully.';
             }
         } elseif (isset($_POST['add'])) {
             $script_name = trim($_POST['new_script_name'] ?? '');
+            $title = trim($_POST['new_title'] ?? '');
             $interval_minutes = (int)($_POST['new_interval_minutes'] ?? 5);
             $parameters = trim($_POST['new_parameters'] ?? '');
             $target_table = trim($_POST['new_target_table'] ?? 'health_checks');
@@ -35,8 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $use_sudo = isset($_POST['new_sudo']) ? 1 : 0;
 
             if ($script_name) {
-                $stmt = $pdo->prepare("INSERT INTO checks (script_name, interval_minutes, parameters, target_table, enabled, sudo) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$script_name, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo]);
+                if ($title === '') {
+                    $title = $script_name;
+                }
+                $stmt = $pdo->prepare("INSERT INTO checks (script_name, title, interval_minutes, parameters, target_table, enabled, sudo) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$script_name, $title, $interval_minutes, $parameters, $target_table, $enabled, $use_sudo]);
                 $success = 'Job added successfully.';
             } else {
                 $error = 'Please provide a script name.';
@@ -89,6 +97,7 @@ try {
         <form method="post" class="add-job-form">
             <div class="job-fields">
                 <label>Script: <input type="text" name="new_script_name" placeholder="e.g., check_new.py" required></label>
+                <label>Title: <input type="text" name="new_title" placeholder="Display title"></label>
                 <label>Interval: <input type="number" name="new_interval_minutes" value="5" min="1" required></label>
                 <label>Params: <input type="text" name="new_parameters" placeholder="e.g., 80 90"></label>
                 <label>Table: <input type="text" name="new_target_table" value="health_checks"></label>
@@ -107,6 +116,7 @@ try {
                 <form method="post" class="job-row-form">
                     <input type="hidden" name="script_name" value="<?php echo htmlspecialchars($check['script_name']); ?>">
                     <div class="job-fields">
+                        <label>Title: <input type="text" name="title" value="<?php echo htmlspecialchars($check['title'] ?? $check['script_name']); ?>"></label>
                         <label>Interval: <input type="number" name="interval_minutes" value="<?php echo $check['interval_minutes']; ?>" min="1" required></label>
                         <label>Params: <input type="text" name="parameters" value="<?php echo htmlspecialchars($check['parameters']); ?>" placeholder="e.g., 80 90"></label>
                         <label>Table: <input type="text" name="target_table" value="<?php echo htmlspecialchars($check['target_table']); ?>"></label>

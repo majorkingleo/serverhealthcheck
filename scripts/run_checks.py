@@ -52,15 +52,16 @@ def get_connection():
 def get_due_checks(conn):
     cur = conn.cursor()
     cur.execute(
-        "SELECT script_name, interval_minutes, parameters, target_table, sudo "
+        "SELECT script_name, title, interval_minutes, parameters, target_table, sudo "
         "FROM checks "
         "WHERE enabled = 1 AND (next_run IS NULL OR next_run <= NOW())"
     )
     checks = []
-    for script_name, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
+    for script_name, title, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
         checks.append(
             {
                 "script_name": script_name,
+                "title": title or script_name,
                 "interval_minutes": int(interval_minutes or "5"),
                 "parameters": parameters or "",
                 "target_table": target_table or "health_checks",
@@ -73,15 +74,16 @@ def get_due_checks(conn):
 def get_all_enabled_checks(conn):
     cur = conn.cursor()
     cur.execute(
-        "SELECT script_name, interval_minutes, parameters, target_table, sudo "
+        "SELECT script_name, title, interval_minutes, parameters, target_table, sudo "
         "FROM checks "
         "WHERE enabled = 1"
     )
     checks = []
-    for script_name, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
+    for script_name, title, interval_minutes, parameters, target_table, use_sudo in cur.fetchall():
         checks.append(
             {
                 "script_name": script_name,
+                "title": title or script_name,
                 "interval_minutes": int(interval_minutes or "5"),
                 "parameters": parameters or "",
                 "target_table": target_table or "health_checks",
@@ -103,6 +105,22 @@ def map_exit_code_to_status(exit_code: int) -> str:
         return "WARN"
     if exit_code == 2:
         return "ERROR"
+    return "UNKNOWN"
+
+
+def parse_main_state(output: str, fallback_status: str) -> str:
+    upper = (output or "").upper()
+    if "WARNIING" in upper or "WARNING" in upper or " WARN " in f" {upper} ":
+        return "WARNING"
+    if "ERROR" in upper:
+        return "ERROR"
+    if "OK" in upper:
+        return "OK"
+
+    if fallback_status == "WARN":
+        return "WARNING"
+    if fallback_status in ("OK", "ERROR", "UNKNOWN"):
+        return fallback_status
     return "UNKNOWN"
 
 
@@ -144,20 +162,44 @@ def execute_check(check):
 def write_result(conn, check, status: str, message: str):
     table_name = sanitize_table_name(check["target_table"])
     cur = conn.cursor()
+
+    def update_then_insert(target_table: str):
+        cur.execute(
+            f"UPDATE `{target_table}` SET status = ?, message = ?, timestamp = NOW() WHERE check_name = ?",
+            (status, message, check["script_name"]),
+        )
+        if cur.rowcount == 0:
+            cur.execute(
+                f"INSERT INTO `{target_table}` (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
+                (check["script_name"], status, message),
+            )
+
     try:
-        cur.execute(
-            f"INSERT INTO `{table_name}` (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
-            (check["script_name"], status, message),
-        )
+        update_then_insert(table_name)
     except mariadb.Error as exc:
-        cur.execute(
-            "INSERT INTO health_checks (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
-            (
-                check["script_name"],
-                "UNKNOWN",
-                f"Failed to insert into {table_name}: {exc}",
-            ),
-        )
+        fallback_message = f"Failed to write into {table_name}: {exc}"
+        try:
+            cur.execute(
+                "UPDATE health_checks SET status = ?, message = ?, timestamp = NOW() WHERE check_name = ?",
+                ("UNKNOWN", fallback_message, check["script_name"]),
+            )
+            if cur.rowcount == 0:
+                cur.execute(
+                    "INSERT INTO health_checks (check_name, status, message, timestamp) VALUES (?, ?, ?, NOW())",
+                    (check["script_name"], "UNKNOWN", fallback_message),
+                )
+        except mariadb.Error:
+            pass
+
+
+def upsert_health_state(conn, check, state: str, message: str):
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO HEALTH (check_name, title, state, message, updated_at) "
+        "VALUES (?, ?, ?, ?, NOW()) "
+        "ON DUPLICATE KEY UPDATE title = VALUES(title), state = VALUES(state), message = VALUES(message), updated_at = NOW()",
+        (check["script_name"], check["title"], state, message),
+    )
 
 
 def update_schedule(conn, check):
@@ -199,10 +241,12 @@ def main():
 
     for check in checks:
         status, message = execute_check(check)
+        main_state = parse_main_state(message, status)
         write_result(conn, check, status, message)
+        upsert_health_state(conn, check, main_state, message)
         update_schedule(conn, check)
         conn.commit()
-        print(f"{check['script_name']}: {status} - {message}")
+        print(f"{check['script_name']}: {main_state} ({status}) - {message}")
 
     conn.close()
     return 0
