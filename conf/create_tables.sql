@@ -115,5 +115,6 @@ CREATE TABLE IF NOT EXISTS ram_stats (
 -- Default check configurations for CPU and RAM
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
 ('check_cpu.py', 'CPU Load', 5, '2.0 4.0', 0),
-('check_ram.py', 'RAM Usage', 5, '80 90', 0)
+('check_ram.py', 'RAM Usage', 5, '80 90', 0),
+('check_processes.py', 'Process Count', 5, '500 800', 0)
 ON DUPLICATE KEY UPDATE script_name=script_name;
