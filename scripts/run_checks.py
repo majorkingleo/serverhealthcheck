@@ -214,13 +214,11 @@ def _parse_and_store_services(cur, message: str):
 
 
 def _parse_and_store_cert(cur, message: str):
-    """Parse check_cert.py output and insert a row into cert_stats."""
-    m_host = re.search(r'CERT \w+: (\S+):(\d+) expires in', message)
-    m_days = re.search(r'days_left=(\d+)', message)
-    if m_host and m_days:
+    """Parse check_cert.py perfdata and insert per-host rows into cert_stats."""
+    for m in re.finditer(r'days_left\[([^:]+):(\d+)\]=(\d+)', message):
         cur.execute(
             "INSERT INTO cert_stats (host, port, days_left, run_at) VALUES (?, ?, ?, NOW())",
-            (m_host.group(1), int(m_host.group(2)), int(m_days.group(1))),
+            (m.group(1), int(m.group(2)), int(m.group(3))),
         )
 
 
