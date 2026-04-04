@@ -551,11 +551,13 @@ th, td {
 .status-warn { background-color: #fff3cd; }
 .status-error { background-color: #f8d7da; }
 .status-unknown { background-color: #e2e3e5; }
+.status-timeout { background-color: #fde8d0; border: 2px dashed #e67e22; }
 
 .dark-theme .status-ok { background-color: #155724; }
 .dark-theme .status-warn { background-color: #856404; }
 .dark-theme .status-error { background-color: #721c24; }
 .dark-theme .status-unknown { background-color: #383d41; }
+.dark-theme .status-timeout { background-color: #6b350a; border-color: #e67e22; }
 
 .header-controls {
     display: flex;

@@ -8,13 +8,26 @@ $pdo = getDB();
 $stmt = $pdo->query("SELECT h.check_name, COALESCE(c.title, h.check_name) AS check_title, h.status, COUNT(*) as count FROM health_checks h LEFT JOIN checks c ON c.script_name = h.check_name WHERE h.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) GROUP BY h.check_name, check_title, h.status ORDER BY check_title, h.status");
 $checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Detect timed-out checks: next_run is overdue by more than 5 minutes
+$timeout_stmt = $pdo->query(
+    "SELECT script_name, COALESCE(title, script_name) AS check_title
+     FROM checks
+     WHERE enabled = 1
+       AND next_run IS NOT NULL
+       AND next_run < DATE_SUB(NOW(), INTERVAL 5 MINUTE)"
+);
+$timed_out = [];
+foreach ($timeout_stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $timed_out[$row['script_name']] = $row['check_title'];
+}
+
 // Get status counts for pie chart
 $status_counts = ['OK' => 0, 'WARN' => 0, 'ERROR' => 0, 'UNKNOWN' => 0];
 foreach ($checks as $check) {
     $status_counts[$check['status']] += $check['count'];
 }
 
-// Aggregate to one widget per check (worst status wins)
+// Aggregate to one widget per check (worst status wins); TIMEOUT overrides all
 $status_priority = ['ERROR' => 3, 'WARN' => 2, 'UNKNOWN' => 1, 'OK' => 0];
 $check_widgets = [];
 foreach ($checks as $check) {
@@ -23,6 +36,14 @@ foreach ($checks as $check) {
         $check_widgets[$name] = ['title' => $check['check_title'], 'status' => $check['status']];
     } elseif (($status_priority[$check['status']] ?? 0) > ($status_priority[$check_widgets[$name]['status']] ?? 0)) {
         $check_widgets[$name]['status'] = $check['status'];
+    }
+}
+// Add timed-out checks (may not appear in recent 24h results if they never ran)
+foreach ($timed_out as $script_name => $title) {
+    if (!isset($check_widgets[$script_name])) {
+        $check_widgets[$script_name] = ['title' => $title, 'status' => 'TIMEOUT'];
+    } else {
+        $check_widgets[$script_name]['status'] = 'TIMEOUT';
     }
 }
 
@@ -84,7 +105,8 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
                         <span class="status-widget-icon"><?php
                             echo $widget['status'] === 'OK'      ? '&#10003;' :
                                 ($widget['status'] === 'WARN'    ? '&#9888;'  :
-                                ($widget['status'] === 'ERROR'   ? '&#10007;' : '?'));
+                                ($widget['status'] === 'ERROR'   ? '&#10007;' :
+                                ($widget['status'] === 'TIMEOUT' ? '&#8987;'  : '?')));
                         ?></span>
                         <span class="status-widget-title"><?php echo htmlspecialchars($widget['title']); ?></span>
                         <span class="status-widget-badge"><?php echo htmlspecialchars($widget['status']); ?></span>
