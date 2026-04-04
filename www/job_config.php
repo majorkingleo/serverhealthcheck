@@ -69,7 +69,8 @@ try {
     <title>Job Configuration - Server Health</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="subpage">
+    <a href="index.php" class="sticky-back-btn">Back to Dashboard</a>
     <div class="login-container" style="max-width: 800px;">
         <h1>Job Configuration</h1>
 
@@ -108,7 +109,6 @@ try {
             <p class="success"><?php echo htmlspecialchars($success); ?></p>
         <?php endif; ?>
 
-        <p><a href="index.php">Back to Dashboard</a></p>
     </div>
 
     <script>

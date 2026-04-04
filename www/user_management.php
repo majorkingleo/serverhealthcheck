@@ -60,7 +60,8 @@ try {
     <title>User Management - Server Health</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="subpage">
+    <a href="index.php" class="sticky-back-btn">Back to Dashboard</a>
     <div class="login-container">
         <h1>User Management</h1>
 
@@ -93,7 +94,6 @@ try {
             <p class="success"><?php echo htmlspecialchars($success); ?></p>
         <?php endif; ?>
 
-        <p><a href="index.php">Back to Dashboard</a></p>
     </div>
 
     <script>

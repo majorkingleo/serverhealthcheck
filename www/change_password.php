@@ -45,7 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Change Password - Server Health</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="subpage">
+    <a href="index.php" class="sticky-back-btn">Back to Dashboard</a>
     <div class="login-container">
         <h1>Change Password</h1>
         <form method="post">
@@ -60,7 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p class="success"><?php echo htmlspecialchars($success); ?></p>
             <?php endif; ?>
         </form>
-        <p><a href="index.php">Back to Dashboard</a></p>
     </div>
 
     <script>

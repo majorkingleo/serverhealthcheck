@@ -8,6 +8,10 @@ body {
     transition: background-color 0.3s, color 0.3s;
 }
 
+body.subpage {
+    padding-top: 4.5rem;
+}
+
 .dark-theme {
     background-color: #333;
     color: #f4f4f4;
@@ -234,4 +238,35 @@ th, td {
 
 #theme-toggle:hover {
     background: #218838;
+}
+
+.sticky-back-btn {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1000;
+    display: inline-block;
+    padding: 0.6rem 1rem;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border: 1px solid #007bff;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.sticky-back-btn:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.dark-theme .sticky-back-btn {
+    background: #0056b3;
+    border-color: #0056b3;
+    color: white;
+}
+
+.dark-theme .sticky-back-btn:hover {
+    background: #003d82;
+    border-color: #003d82;
 }
