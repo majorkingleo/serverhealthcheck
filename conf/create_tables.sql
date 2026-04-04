@@ -50,3 +50,23 @@ INSERT INTO checks (script_name, title, interval_minutes, parameters, target_tab
 ('check_fs_mirror.py', 'Filesystem Mirror', 5, '', 'health_checks', 1),
 ('check_smart.py', 'SMART Health', 5, '', 'health_checks', 1) 
 ON DUPLICATE KEY UPDATE script_name=script_name;
+
+-- Health check stats history table (one row per run)
+CREATE TABLE IF NOT EXISTS health_checks_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    check_name VARCHAR(100) NOT NULL,
+    status ENUM('OK', 'WARN', 'ERROR', 'UNKNOWN') NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stats_check_name (check_name),
+    INDEX idx_stats_timestamp (timestamp)
+);
+
+-- Health check stats history table (one row per run)
+CREATE TABLE IF NOT EXISTS health_checks_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    check_name VARCHAR(100) NOT NULL,
+    status ENUM('OK', 'WARN', 'ERROR', 'UNKNOWN') NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stats_check_name (check_name),
+    INDEX idx_stats_timestamp (timestamp)
+);

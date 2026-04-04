@@ -171,6 +171,12 @@ def write_result(conn, check, status: str, message: str):
                 file=sys.stderr,
             )
 
+    # Append a stats row for every run.
+    cur.execute(
+        "INSERT INTO health_checks_stats (check_name, status, timestamp) VALUES (?, ?, NOW())",
+        (check["script_name"], status),
+    )
+
 
 def update_schedule(conn, check):
     interval_minutes = max(1, int(check["interval_minutes"]))
