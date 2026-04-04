@@ -35,6 +35,7 @@ $is_disk  = ($check_name === 'check_disk.py');
 $is_cpu   = ($check_name === 'check_cpu.py');
 $is_ram   = ($check_name === 'check_ram.py');
 $is_proc  = ($check_name === 'check_processes.py');
+$is_db    = ($check_name === 'check_mariadb.py');
 
 if ($is_smart) {
     // Per-device health per day: count PASSED/FAILED
@@ -154,6 +155,24 @@ if ($is_proc) {
         ];
     }
 }
+
+if ($is_db) {
+    $stmt = $pdo->query(
+        "SELECT DATE(run_at) AS date, table_name, ROUND(AVG(row_count)) AS avg_rows
+         FROM mariadb_table_stats
+         WHERE run_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY DATE(run_at), table_name
+         ORDER BY date, table_name"
+    );
+    $db_table_data = [];
+    $db_tables = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $db_table_data[$row['date']][$row['table_name']] = (int)$row['avg_rows'];
+        $db_tables[$row['table_name']] = true;
+    }
+    $db_tables = array_keys($db_tables);
+    sort($db_tables);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -232,6 +251,16 @@ if ($is_proc) {
                     <button class="chart-expand-btn" data-chart="procCount" title="Expand" aria-label="Expand">+</button>
                 </div>
                 <canvas id="procCountChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($is_db): ?>
+            <div class="chart-container">
+                <div class="chart-container-header">
+                    <h2>MariaDB Table Rows (Last 30 days)</h2>
+                    <button class="chart-expand-btn" data-chart="dbTableRows" title="Expand" aria-label="Expand">+</button>
+                </div>
+                <canvas id="dbTableRowsChart"></canvas>
             </div>
             <?php endif; ?>
         </div>
@@ -489,6 +518,34 @@ if ($is_proc) {
 
         <?php endif; ?>
 
+        <?php if ($is_db): ?>
+        // --- MariaDB table row count chart ---
+        <?php
+        $dbPalette = ['#007bff','#fd7e14','#20c997','#e83e8c','#6f42c1','#17a2b8','#ffc107','#dc3545','#28a745','#343a40'];
+        echo "const dbDates = " . json_encode(array_map(fn($i) => date('Y-m-d', strtotime("$start +$i days")), range(0, 29))) . ";\n";
+        echo "const dbDatasets = [];\n";
+        foreach ($db_tables as $idx => $tbl) {
+            $color = $dbPalette[$idx % count($dbPalette)];
+            $data = array_map(
+                fn($i) => $db_table_data[date('Y-m-d', strtotime("$start +$i days"))][$tbl] ?? null,
+                range(0, 29)
+            );
+            echo "dbDatasets.push({ label: " . json_encode($tbl) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
+        }
+        ?>
+
+        const dbTableRowsChartConfig = {
+            type: 'line',
+            data: { labels: dbDates, datasets: dbDatasets },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Row Count' }, ticks: { precision: 0 } } }
+            }
+        };
+        new Chart(document.getElementById('dbTableRowsChart').getContext('2d'), dbTableRowsChartConfig);
+
+        <?php endif; ?>
+
         // Chart expand overlay
         const chartConfigs = {
             stats:       { config: statsChartConfig,       title: <?php echo json_encode(htmlspecialchars($title) . ' — Status Timeline (Last 30 days)'); ?> },
@@ -507,6 +564,9 @@ if ($is_proc) {
             <?php endif; ?>
             <?php if ($is_proc): ?>
             procCount:   { config: procCountChartConfig,   title: 'Process Count (Last 30 days)' },
+            <?php endif; ?>
+            <?php if ($is_db): ?>
+            dbTableRows: { config: dbTableRowsChartConfig, title: 'MariaDB Table Rows (Last 30 days)' },
             <?php endif; ?>
         };
 

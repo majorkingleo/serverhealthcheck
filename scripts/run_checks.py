@@ -213,6 +213,19 @@ def _parse_and_store_processes(cur, message: str):
         )
 
 
+def _parse_and_store_mariadb(cur, message: str):
+    """Parse check_mariadb.py perfdata and insert per-table rows into mariadb_table_stats."""
+    if " | " not in message:
+        return
+    perfdata = message.split(" | ", 1)[1]
+    # format: schema__table=rowcount;warn;crit;0;
+    for m in re.finditer(r'(\w+)__(\w+)=(\d+)', perfdata):
+        cur.execute(
+            "INSERT INTO mariadb_table_stats (table_schema, table_name, row_count, run_at) VALUES (?, ?, ?, NOW())",
+            (m.group(1), m.group(2), int(m.group(3))),
+        )
+
+
 def write_result(conn, check, status: str, message: str):
     cur = conn.cursor()
 
@@ -251,6 +264,10 @@ def write_result(conn, check, status: str, message: str):
     # For the process check, persist process count rows.
     if check["script_name"] == "check_processes.py":
         _parse_and_store_processes(cur, message)
+
+    # For the MariaDB check, persist per-table row count snapshots.
+    if check["script_name"] == "check_mariadb.py":
+        _parse_and_store_mariadb(cur, message)
 
 
 def update_schedule(conn, check):

@@ -120,6 +120,22 @@ CREATE TABLE IF NOT EXISTS process_stats (
     INDEX idx_process_stats_run (run_at)
 );
 
+-- MariaDB table row count snapshots, one row per table per run
+CREATE TABLE IF NOT EXISTS mariadb_table_stats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    table_schema VARCHAR(64) NOT NULL,
+    table_name VARCHAR(64) NOT NULL,
+    row_count BIGINT NOT NULL,
+    INDEX idx_mts_run (run_at),
+    INDEX idx_mts_table (table_schema, table_name, run_at)
+);
+
+-- Default check configuration for MariaDB
+INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
+('check_mariadb.py', 'MariaDB Health', 5, '1000 5000', 0)
+ON DUPLICATE KEY UPDATE script_name=script_name;
+
 -- Default check configurations for CPU and RAM
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES
 ('check_cpu.py', 'CPU Load', 5, '2.0 4.0', 0),
