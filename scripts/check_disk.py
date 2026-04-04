@@ -3,6 +3,8 @@ import re
 import sys
 import subprocess
 
+import check
+
 
 def get_physical_mountpoints():
     """Return mountpoints for physical volumes only, skipping btrfs subvolume mounts."""
@@ -33,16 +35,7 @@ def get_physical_mountpoints():
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("UNKNOWN: Usage: check_disk.py <warn_percent> <crit_percent>")
-        sys.exit(3)
-
-    try:
-        warn_percent = float(sys.argv[1])
-        crit_percent = float(sys.argv[2])
-    except ValueError:
-        print("UNKNOWN: Invalid parameters")
-        sys.exit(3)
+    warn_percent, crit_percent = check.parse_args("check_disk.py <warn_percent> <crit_percent>")
 
     try:
         mountpoints = get_physical_mountpoints()
@@ -106,12 +99,7 @@ def main():
 
     print(f"{msg} | {' '.join(perfdata)}")
 
-    if overall_status == 'ERROR':
-        sys.exit(2)
-    elif overall_status == 'WARN':
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    sys.exit(check.exit_code(overall_status))
 
 
 if __name__ == "__main__":

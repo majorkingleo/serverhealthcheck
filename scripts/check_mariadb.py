@@ -4,6 +4,8 @@ from pathlib import Path
 
 import mariadb
 
+import check
+
 from db import get_connection
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -15,25 +17,16 @@ SYSTEM_SCHEMAS = frozenset({
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("UNKNOWN: Usage: check_mariadb.py <warn_rows_per_day> <crit_rows_per_day>")
-        sys.exit(3)
-
-    try:
-        warn = int(sys.argv[1])
-        crit = int(sys.argv[2])
-    except ValueError:
-        print("UNKNOWN: Invalid parameters")
-        sys.exit(3)
+    warn, crit = check.parse_args(
+        "check_mariadb.py <warn_rows_per_day> <crit_rows_per_day>", [int, int]
+    )
 
     try:
         conn = get_connection()
     except mariadb.Error as exc:
-        print(f"CRIT: Cannot connect to MariaDB: {exc}")
-        sys.exit(2)
+        check.exit_with_status("CRIT", f"CRIT: Cannot connect to MariaDB: {exc}")
     except Exception as exc:
-        print(f"UNKNOWN: Config error: {exc}")
-        sys.exit(3)
+        check.exit_with_status("UNKNOWN", f"UNKNOWN: Config error: {exc}")
 
     try:
         cur = conn.cursor()
@@ -49,8 +42,7 @@ def main():
         current = {f"{r[0]}__{r[1]}": int(r[2]) for r in cur.fetchall()}
 
         if not current:
-            print("OK: MariaDB is up, no user tables found | ")
-            sys.exit(0)
+            check.exit_with_status("OK", "OK: MariaDB is up, no user tables found | ")
 
         # Previous snapshot: most recent row in mariadb_table_stats older than 20h
         cur.execute(
@@ -86,20 +78,16 @@ def main():
 
         if worst == "CRIT":
             details = ", ".join(f"{t.split('__')[1]} +{g}" for t, g in crit_tables)
-            print(f"CRIT: MariaDB table growth exceeded critical threshold: {details} | {perfdata}")
-            sys.exit(2)
+            check.exit_with_status("CRIT", f"CRIT: MariaDB table growth exceeded critical threshold: {details} | {perfdata}")
         elif worst == "WARN":
             details = ", ".join(f"{t.split('__')[1]} +{g}" for t, g in warn_tables)
-            print(f"WARN: MariaDB table growth exceeded warning threshold: {details} | {perfdata}")
-            sys.exit(1)
+            check.exit_with_status("WARN", f"WARN: MariaDB table growth exceeded warning threshold: {details} | {perfdata}")
         else:
             table_count = len(current)
-            print(f"OK: MariaDB is up, {table_count} tables healthy | {perfdata}")
-            sys.exit(0)
+            check.exit_with_status("OK", f"OK: MariaDB is up, {table_count} tables healthy | {perfdata}")
 
     except mariadb.Error as exc:
-        print(f"UNKNOWN: Query error: {exc}")
-        sys.exit(3)
+        check.exit_with_status("UNKNOWN", f"UNKNOWN: Query error: {exc}")
     finally:
         conn.close()
 

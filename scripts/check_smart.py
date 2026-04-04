@@ -3,6 +3,8 @@ import sys
 import subprocess
 import glob
 
+import check
+
 def get_disks():
     disks = []
     candidates = []
@@ -38,8 +40,7 @@ def check_smart(disk):
 def main():
     disks = get_disks()
     if not disks:
-        print("UNKNOWN: No physical disks found")
-        sys.exit(3)
+        check.exit_with_status("UNKNOWN", "UNKNOWN: No physical disks found")
 
     overall_status = 'OK'
     messages = []
@@ -79,12 +80,7 @@ def main():
     perf_str = ' | ' + ' '.join(perfdata) if perfdata else ''
     print(msg + perf_str)
 
-    if overall_status == 'ERROR':
-        sys.exit(2)
-    elif overall_status == 'UNKNOWN':
-        sys.exit(3)
-    else:
-        sys.exit(0)
+    sys.exit(check.exit_code(overall_status))
 
 if __name__ == "__main__":
     main()

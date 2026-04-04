@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import sys
 import os
+import sys
+
+import check
 
 
 def count_processes():
@@ -9,34 +11,21 @@ def count_processes():
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("UNKNOWN: Usage: check_processes.py <warn_count> <crit_count>")
-        sys.exit(3)
-
-    try:
-        warn = int(sys.argv[1])
-        crit = int(sys.argv[2])
-    except ValueError:
-        print("UNKNOWN: Invalid parameters")
-        sys.exit(3)
+    warn, crit = check.parse_args("check_processes.py <warn_count> <crit_count>", [int, int])
 
     try:
         count = count_processes()
     except Exception as exc:
-        print(f"UNKNOWN: Failed to count processes: {exc}")
-        sys.exit(3)
+        check.exit_with_status("UNKNOWN", f"UNKNOWN: Failed to count processes: {exc}")
 
     perfdata = f"processes={count};{warn};{crit};0;"
 
     if count >= crit:
-        print(f"PROCESSES CRIT: {count} processes running | {perfdata}")
-        sys.exit(2)
+        check.exit_with_status("CRIT", f"PROCESSES CRIT: {count} processes running | {perfdata}")
     elif count >= warn:
-        print(f"PROCESSES WARN: {count} processes running | {perfdata}")
-        sys.exit(1)
+        check.exit_with_status("WARN", f"PROCESSES WARN: {count} processes running | {perfdata}")
     else:
-        print(f"PROCESSES OK: {count} processes running | {perfdata}")
-        sys.exit(0)
+        check.exit_with_status("OK", f"PROCESSES OK: {count} processes running | {perfdata}")
 
 
 if __name__ == '__main__':

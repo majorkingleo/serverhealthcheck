@@ -2,6 +2,8 @@
 import sys
 import subprocess
 
+import check
+
 def check_mirroring():
     import shutil
     if not shutil.which('btrfs'):
@@ -87,14 +89,7 @@ def main():
 
     print(msg)
 
-    if overall_status == 'ERROR':
-        sys.exit(2)
-    elif overall_status == 'WARN':
-        sys.exit(1)
-    elif overall_status == 'UNKNOWN':
-        sys.exit(3)
-    else:
-        sys.exit(0)
+    sys.exit(check.exit_code(overall_status))
 
 if __name__ == "__main__":
     main()

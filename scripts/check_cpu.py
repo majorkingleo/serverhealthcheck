@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 import sys
 
+import check
+
 
 def main():
-    if len(sys.argv) != 3:
-        print("UNKNOWN: Usage: check_cpu.py <warn_load> <crit_load>")
-        sys.exit(3)
-
-    try:
-        warn = float(sys.argv[1])
-        crit = float(sys.argv[2])
-    except ValueError:
-        print("UNKNOWN: Invalid parameters")
-        sys.exit(3)
+    warn, crit = check.parse_args("check_cpu.py <warn_load> <crit_load>")
 
     try:
         with open('/proc/loadavg') as f:
@@ -21,8 +14,7 @@ def main():
         load5  = float(parts[1])
         load15 = float(parts[2])
     except Exception as exc:
-        print(f"UNKNOWN: Failed to read load average: {exc}")
-        sys.exit(3)
+        check.exit_with_status("UNKNOWN", f"UNKNOWN: Failed to read load average: {exc}")
 
     perfdata = (
         f"load1={load1};{warn};{crit};0; "
@@ -31,14 +23,11 @@ def main():
     )
 
     if load1 >= crit:
-        print(f"CPU CRIT: Load avg {load1}/{load5}/{load15} | {perfdata}")
-        sys.exit(2)
+        check.exit_with_status("CRIT", f"CPU CRIT: Load avg {load1}/{load5}/{load15} | {perfdata}")
     elif load1 >= warn:
-        print(f"CPU WARN: Load avg {load1}/{load5}/{load15} | {perfdata}")
-        sys.exit(1)
+        check.exit_with_status("WARN", f"CPU WARN: Load avg {load1}/{load5}/{load15} | {perfdata}")
     else:
-        print(f"CPU OK: Load avg {load1}/{load5}/{load15} | {perfdata}")
-        sys.exit(0)
+        check.exit_with_status("OK", f"CPU OK: Load avg {load1}/{load5}/{load15} | {perfdata}")
 
 
 if __name__ == '__main__':
