@@ -44,6 +44,10 @@ def list_service_states():
         unit = parts[0]
         if unit in disabled:
             continue
+        # Skip units whose unit file is missing/bad (e.g. uninstalled packages
+        # that left a stale failed state in the journal)
+        if parts[1].lower() != 'loaded':
+            continue
         state = parts[2].lower()
         if state in counts:
             counts[state] += 1
