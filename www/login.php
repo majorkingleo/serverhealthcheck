@@ -16,13 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['password'] ?? '';
 
         if ($username && $password) {
-            $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE username = ?");
+            $stmt = $pdo->prepare("SELECT id, password_hash, is_admin FROM users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $username;
+                $_SESSION['is_admin'] = (bool)$user['is_admin'];
                 header('Location: index.php');
                 exit;
             } else {

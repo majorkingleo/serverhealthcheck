@@ -2,7 +2,7 @@
 require_once 'config.php';
 requireLogin();
 
-if ($_SESSION['username'] !== 'admin') {
+if (empty($_SESSION['is_admin'])) {
     header('Location: index.php');
     exit;
 }

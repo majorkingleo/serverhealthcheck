@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS checks (
 );
 
 -- Insert a default admin user (password: admin, hashed)
-INSERT INTO users (username, password_hash) VALUES ('admin', '$2y$12$UTuDn.Ayfs5nBBP636rXdOAR6HDNe4NzVYDlUE8lRGHv1.AyR16Ou') ON DUPLICATE KEY UPDATE password_hash=password_hash;
+INSERT INTO users (username, password_hash, is_admin) VALUES ('admin', '$2y$12$UTuDn.Ayfs5nBBP636rXdOAR6HDNe4NzVYDlUE8lRGHv1.AyR16Ou', 1) ON DUPLICATE KEY UPDATE password_hash=password_hash, is_admin=1;
 
 -- Insert default check configurations
 INSERT INTO checks (script_name, title, interval_minutes, parameters, sudo) VALUES 

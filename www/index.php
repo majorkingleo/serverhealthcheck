@@ -69,7 +69,7 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
         <div class="header-controls">
             <button id="theme-toggle">Toggle Theme</button>
             <a href="change_password.php">Change Password</a>
-            <?php if ($_SESSION['username'] === 'admin'): ?>
+            <?php if (!empty($_SESSION['is_admin'])): ?>
                 <a href="user_management.php">User Management</a>
                 <a href="job_config.php">Job Config</a>
             <?php endif; ?>

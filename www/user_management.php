@@ -2,7 +2,7 @@
 require_once 'config.php';
 requireLogin();
 
-if ($_SESSION['username'] !== 'admin') {
+if (empty($_SESSION['is_admin'])) {
     header('Location: index.php');
     exit;
 }
@@ -37,6 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $error = 'Cannot delete this user.';
             }
+        } elseif (isset($_POST['toggle_admin'])) {
+            $user_id = (int)($_POST['user_id'] ?? 0);
+            $make_admin = isset($_POST['is_admin']) ? 1 : 0;
+            if ($user_id && $user_id != $_SESSION['user_id']) {  // Don't change own admin status
+                $stmt = $pdo->prepare("UPDATE users SET is_admin = ? WHERE id = ?");
+                $stmt->execute([$make_admin, $user_id]);
+                $success = 'Admin status updated.';
+            } else {
+                $error = 'Cannot change your own admin status.';
+            }
         }
     } catch (PDOException $e) {
         $error = 'Database error: ' . $e->getMessage();
@@ -45,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get all users
 try {
-    $stmt = $pdo->query("SELECT id, username FROM users ORDER BY username");
+    $stmt = $pdo->query("SELECT id, username, is_admin FROM users ORDER BY username");
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $error = 'Database error: ' . $e->getMessage();
@@ -80,8 +90,19 @@ try {
                     <?php if ($user['id'] != $_SESSION['user_id']): ?>
                         <form method="post" style="display: inline;">
                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                            <label style="margin: 0 8px;">
+                                <input type="checkbox" name="is_admin" <?php echo $user['is_admin'] ? 'checked' : ''; ?>
+                                    onchange="this.form.submit()">
+                                Admin
+                            </label>
+                            <input type="hidden" name="toggle_admin" value="1">
+                        </form>
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                             <button type="submit" name="delete_user" onclick="return confirm('Are you sure you want to delete this user?')">Delete</button>
                         </form>
+                    <?php else: ?>
+                        <span style="margin: 0 8px; color: var(--text-muted, #888);">Admin (you)</span>
                     <?php endif; ?>
                 </li>
             <?php endforeach; ?>
