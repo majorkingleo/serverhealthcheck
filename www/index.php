@@ -5,7 +5,7 @@ requireLogin();
 $pdo = getDB();
 
 // Get recent health checks using configured titles from checks table
-$stmt = $pdo->query("SELECT h.check_name, COALESCE(c.title, h.check_name) AS check_title, h.status, COUNT(*) as count FROM health_checks h LEFT JOIN checks c ON c.script_name = h.check_name WHERE h.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) GROUP BY h.check_name, check_title, h.status ORDER BY check_title, h.status");
+$stmt = $pdo->query("SELECT h.check_name, COALESCE(c.title, h.check_name) AS check_title, h.status, COUNT(*) as count FROM health_checks h INNER JOIN checks c ON c.script_name = h.check_name WHERE h.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND c.enabled = 1 GROUP BY h.check_name, check_title, h.status ORDER BY check_title, h.status");
 $checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Detect timed-out checks: next_run is overdue by more than 5 minutes
