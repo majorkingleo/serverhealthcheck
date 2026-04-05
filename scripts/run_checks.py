@@ -205,11 +205,21 @@ def _parse_and_store_services(cur, message: str):
     # Parse per-unit states from the ||| section
     if ' ||| ' in message:
         units_section = message.split(' ||| ', 1)[1]
+        seen_units = []
         for m in re.finditer(r'(\S+\.service)=(\w+)', units_section):
+            unit_name = m.group(1)
+            seen_units.append(unit_name)
             cur.execute(
                 "INSERT INTO service_unit_states (unit_name, state, run_at) VALUES (?, ?, NOW()) "
                 "ON DUPLICATE KEY UPDATE state = VALUES(state), run_at = NOW()",
-                (m.group(1), m.group(2)),
+                (unit_name, m.group(2)),
+            )
+        # Remove stale units no longer reported by the current run
+        if seen_units:
+            placeholders = ','.join('?' * len(seen_units))
+            cur.execute(
+                f"DELETE FROM service_unit_states WHERE unit_name NOT IN ({placeholders})",
+                seen_units,
             )
 
 
