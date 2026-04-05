@@ -4,8 +4,30 @@ import subprocess
 import check
 
 
+def get_disabled_units():
+    """Return a set of unit names whose unit-file state is disabled or masked."""
+    result = subprocess.run(
+        ['systemctl', 'list-unit-files', '--type=service',
+         '--no-legend', '--no-pager', '--plain'],
+        capture_output=True, text=True, timeout=30,
+    )
+    disabled = set()
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        # columns: UNIT_FILE  STATE  [VENDOR_PRESET]
+        if len(parts) < 2:
+            continue
+        unit, state = parts[0], parts[1].lower()
+        if state in ('disabled', 'masked', 'masked-runtime'):
+            disabled.add(unit)
+    return disabled
+
+
 def list_service_states():
-    """Return (counts_dict, failed_names_list, unit_states_list) from systemctl."""
+    """Return (counts_dict, failed_names_list, unit_states_list) from systemctl,
+    excluding units whose unit-file state is disabled or masked."""
+    disabled = get_disabled_units()
+
     result = subprocess.run(
         ['systemctl', 'list-units', '--type=service', '--all',
          '--no-legend', '--no-pager', '--plain'],
@@ -20,6 +42,8 @@ def list_service_states():
         if len(parts) < 3:
             continue
         unit = parts[0]
+        if unit in disabled:
+            continue
         state = parts[2].lower()
         if state in counts:
             counts[state] += 1
