@@ -183,9 +183,13 @@ if ($is_svc) {
 
     // Latest state per unit for the service-states widget
     $stmt2 = $pdo->query(
-        "SELECT unit_name, state FROM service_unit_states WHERE state != 'inactive' ORDER BY state, unit_name"
+        "SELECT unit_name, state, run_at FROM service_unit_states WHERE state != 'inactive' ORDER BY state, unit_name"
     );
     $svc_units = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+    // Determine the most recent run timestamp
+    $stmt3 = $pdo->query("SELECT MAX(run_at) FROM service_unit_states");
+    $svc_last_run = $stmt3->fetchColumn();
 }
 
 if ($is_db) {
@@ -459,7 +463,7 @@ if ($is_zombies) {
 
         <?php if ($is_svc && !empty($svc_units)): ?>
         <div class="checks-list">
-            <h2>Service States <span class="checks-subtitle">(last check)</span></h2>
+            <h2>Service States <span class="checks-subtitle">(last run: <?= $svc_last_run ? htmlspecialchars(date('Y-m-d H:i:s', strtotime($svc_last_run))) : 'unknown' ?>)</span></h2>
             <div class="status-widgets">
                 <?php foreach ($svc_units as $unit):
                     $state = $unit['state'];
