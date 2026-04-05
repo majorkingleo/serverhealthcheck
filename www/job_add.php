@@ -10,6 +10,17 @@ if ($_SESSION['username'] !== 'admin') {
 $pdo = getDB();
 $error = '';
 
+// Gather available scripts not yet configured
+$scripts_dir = __DIR__ . '/../scripts/';
+$all_scripts = array_values(array_filter(
+    array_map('basename', glob($scripts_dir . 'check_*.py') ?: []),
+    fn($f) => is_file($scripts_dir . $f)
+));
+sort($all_scripts);
+
+$configured = $pdo->query("SELECT script_name FROM checks")->fetchAll(PDO::FETCH_COLUMN);
+$available_scripts = array_values(array_diff($all_scripts, $configured));
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $script_name = trim($_POST['script_name'] ?? '');
@@ -54,7 +65,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <form method="post" class="add-job-form">
             <div class="job-fields">
-                <label>Script: <input type="text" name="script_name" placeholder="e.g., check_new.py" required></label>
+                <label>Script:
+                    <?php if ($available_scripts): ?>
+                        <select name="script_name" required>
+                            <option value="">-- select script --</option>
+                            <?php foreach ($available_scripts as $s): ?>
+                                <option value="<?php echo htmlspecialchars($s); ?>"><?php echo htmlspecialchars($s); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php else: ?>
+                        <span class="hint">All available scripts are already configured.</span>
+                        <input type="hidden" name="script_name" value="">
+                    <?php endif; ?>
+                </label>
                 <label>Title: <input type="text" name="title" placeholder="Display title"></label>
                 <label>Interval: <input type="number" name="interval_minutes" value="5" min="1" required></label>
                 <label>Params: <input type="text" name="parameters" placeholder="e.g., 80 90"></label>
