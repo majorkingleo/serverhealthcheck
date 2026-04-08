@@ -525,7 +525,7 @@ if ($is_zombies) {
             },
             options: {
                 responsive: true,
-                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Count' } } }
             }
         };
         new Chart(document.getElementById('statsChart').getContext('2d'), statsChartConfig);
@@ -611,8 +611,8 @@ if ($is_zombies) {
                 $date = date('Y-m-d', strtotime("$start +$i days"));
                 $used  = $disk_usage[$date][$mp]['used']  ?? null;
                 $total = $disk_usage[$date][$mp]['total'] ?? null;
-                $pct   = ($total && $used !== null) ? round($used / $total * 100, 1) : null;
-                $data[] = $pct;
+                $gib   = ($used !== null) ? round($used / 1024, 2) : null;
+                $data[] = $gib;
             }
             echo "diskDatasets.push({ label: " . json_encode($mp) . ", data: " . json_encode($data) . ", borderColor: " . json_encode($color) . ", backgroundColor: " . json_encode($color . '22') . ", fill: false, spanGaps: true });\n";
         }
@@ -625,13 +625,13 @@ if ($is_zombies) {
                 responsive: true,
                 scales: {
                     y: {
-                        min: 0, max: 100,
-                        title: { display: true, text: 'Usage (%)' },
-                        ticks: { callback: v => v + '%' }
+                        beginAtZero: true,
+                        title: { display: true, text: 'Usage (GiB)' },
+                        ticks: { callback: v => v + ' GiB' }
                     }
                 },
                 plugins: {
-                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y + '%' : 'N/A') } }
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y + ' GiB' : 'N/A') } }
                 }
             }
         };
