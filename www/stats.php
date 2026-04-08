@@ -313,7 +313,7 @@ if ($is_zombies) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($title); ?> - Stats</title>
-    <link rel="icon" href="favicon.php" type="image/svg+xml">
+    <link rel="icon" href="favicon.php?ts=<?php echo time(); ?>" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>

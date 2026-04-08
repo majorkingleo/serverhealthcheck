@@ -2,7 +2,9 @@
 require_once '../conf/db.php';
 
 header('Content-Type: image/svg+xml');
-header('Cache-Control: no-cache, must-revalidate');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
 
 $status = 'UNKNOWN';
 try {

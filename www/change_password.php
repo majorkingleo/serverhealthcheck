@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Change Password - Server Health</title>
-    <link rel="icon" href="favicon.php" type="image/svg+xml">
+    <link rel="icon" href="favicon.php?ts=<?php echo time(); ?>" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="subpage">
