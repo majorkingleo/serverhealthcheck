@@ -4,6 +4,8 @@ A self-hosted server monitoring dashboard built with PHP, Python 3, and MariaDB.
 It runs configurable check scripts on a schedule, stores the results in a database,
 and displays them as a live web dashboard with interactive Chart.js timeline widgets.
 
+*Note: This webpage was completly vibecoded by using Cloude Sonnet 4.6*
+
 ## Features
 
 - **Dashboard** (`index.php`) — status overview with one widget per check, colour-coded
