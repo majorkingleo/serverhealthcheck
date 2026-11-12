@@ -82,20 +82,31 @@ def main():
     for mountpoint, percent_used, used_mb, total_mb in physical_partitions:
         warn_mb = total_mb * (warn_percent / 100)
         crit_mb = total_mb * (crit_percent / 100)
+        free_mb = total_mb - used_mb
 
         if percent_used >= crit_percent:
             overall_status = 'ERROR'
-            messages.append(f"{mountpoint} {percent_used:.1f}% used")
+            messages.append(
+                f"{mountpoint} {percent_used:.1f}% used "
+                f"({used_mb / 1024:.1f}/{total_mb / 1024:.1f} GB, "
+                f"{free_mb / 1024:.1f} GB free) exceeds crit {crit_percent:g}%"
+            )
         elif percent_used >= warn_percent and overall_status == 'OK':
             overall_status = 'WARN'
-            messages.append(f"{mountpoint} {percent_used:.1f}% used")
+            messages.append(
+                f"{mountpoint} {percent_used:.1f}% used "
+                f"({used_mb / 1024:.1f}/{total_mb / 1024:.1f} GB, "
+                f"{free_mb / 1024:.1f} GB free) exceeds warn {warn_percent:g}%"
+            )
 
         label = mountpoint.replace('/', '_').strip('_') or 'root'
         perfdata.append(f"{label}={used_mb:.0f}MB;{warn_mb:.0f};{crit_mb:.0f};0;{total_mb:.0f}")
 
     msg = f"DISK {overall_status}"
     if messages:
-        msg += ' - ' + ', '.join(messages)
+        msg += ' - ' + check.summarize(messages, limit=10, separator='; ')
+    else:
+        msg += f" - all {len(physical_partitions)} mounts below {warn_percent:g}%"
 
     print(f"{msg} | {' '.join(perfdata)}")
 

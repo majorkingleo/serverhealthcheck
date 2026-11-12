@@ -79,15 +79,26 @@ def main():
     units_str = ' '.join(f"{u}={s}" for u, s in unit_states)
 
     if n_failed >= crit:
-        detail = ', '.join(failed[:5])
-        check.exit_with_status("CRIT", f"SERVICES CRIT: {n_failed} failed ({detail}) | {perfdata} ||| {units_str}")
+        detail = check.summarize(failed, limit=15)
+        suffix = f": {detail}" if detail else ""
+        check.exit_with_status(
+            "CRIT",
+            f"SERVICES CRIT: {n_failed} failed services exceeds crit {crit} "
+            f"(warn {warn}){suffix} | {perfdata} ||| {units_str}",
+        )
     elif n_failed >= warn:
-        detail = ', '.join(failed[:5])
-        check.exit_with_status("WARN", f"SERVICES WARN: {n_failed} failed ({detail}) | {perfdata} ||| {units_str}")
+        detail = check.summarize(failed, limit=15)
+        suffix = f": {detail}" if detail else ""
+        check.exit_with_status(
+            "WARN",
+            f"SERVICES WARN: {n_failed} failed services exceeds warn {warn} "
+            f"(crit {crit}){suffix} | {perfdata} ||| {units_str}",
+        )
     else:
         check.exit_with_status(
             "OK",
-            f"SERVICES OK: {n_active} active, {n_inactive} inactive, {n_failed} failed | {perfdata} ||| {units_str}",
+            f"SERVICES OK: {n_active} active, {n_inactive} inactive, {n_failed} failed "
+            f"(warn {warn}, crit {crit}) | {perfdata} ||| {units_str}",
         )
 
 

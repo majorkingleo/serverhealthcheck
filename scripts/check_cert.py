@@ -1,50 +1,16 @@
 #!/usr/bin/env python3
+"""Check TLS certificate expiry for hosts given on the command line.
+
+Usage: check_cert.py <host1[:port]> [host2[:port] ...] <warn_days> <crit_days>
+"""
 import datetime
-import glob
-import os
-import re
 import socket
 import ssl
 import sys
 
 import check
 
-SITES_ENABLED = '/etc/apache2/sites-enabled'
-
-
-def get_ssl_hostnames(sites_dir: str = SITES_ENABLED) -> list[str]:
-    """Return deduplicated hostnames from all <VirtualHost *:443> blocks in sites-enabled."""
-    hostnames: list[str] = []
-    seen: set[str] = set()
-
-    for conf_file in sorted(glob.glob(os.path.join(sites_dir, '*.conf'))):
-        try:
-            with open(conf_file) as f:
-                content = f.read()
-        except OSError:
-            continue
-
-        for block in re.finditer(
-            r'<VirtualHost[^>]*:443[^>]*>(.*?)</VirtualHost>',
-            content, re.DOTALL | re.IGNORECASE,
-        ):
-            block_text = block.group(1)
-            # ServerName
-            m = re.search(r'^\s*ServerName\s+(\S+)', block_text, re.MULTILINE | re.IGNORECASE)
-            if m:
-                host = m.group(1).lower()
-                if host not in seen:
-                    seen.add(host)
-                    hostnames.append(host)
-            # ServerAlias (space-separated, may appear multiple times)
-            for alias_line in re.finditer(r'^\s*ServerAlias\s+(.+)', block_text, re.MULTILINE | re.IGNORECASE):
-                for alias in alias_line.group(1).split():
-                    alias = alias.lower()
-                    if alias not in seen:
-                        seen.add(alias)
-                        hostnames.append(alias)
-
-    return hostnames
+_PRIORITY = {"OK": 0, "WARN": 1, "CRIT": 2, "UNKNOWN": 3}
 
 
 def get_cert_expiry(host: str, port: int) -> datetime.datetime:
@@ -56,72 +22,27 @@ def get_cert_expiry(host: str, port: int) -> datetime.datetime:
     return datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
 
 
-def main():
-    # Usage: check_cert.py <warn_days> <crit_days>
-    if len(sys.argv) != 3:
-        print("UNKNOWN: Usage: check_cert.py <warn_days> <crit_days>")
-        sys.exit(3)
-
-    try:
-        warn_days = int(sys.argv[1])
-        crit_days = int(sys.argv[2])
-    except ValueError:
-        print("UNKNOWN: warn_days and crit_days must be integers")
-        sys.exit(3)
-
-    hostnames = get_ssl_hostnames()
-    if not hostnames:
-        check.exit_with_status("UNKNOWN", f"UNKNOWN: No SSL vhosts found in {SITES_ENABLED}")
-
-    _priority = {"OK": 0, "WARN": 1, "CRIT": 2, "UNKNOWN": 3}
+def check_host(host: str, port: int, warn_days: int, crit_days: int) -> tuple[str, int, str | None, str]:
+    """Return (status, days_left, expiry_date, detail) for one host."""
     now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    results = []
-    worst = "OK"
+    try:
+        expiry = get_cert_expiry(host, port)
+    except ssl.SSLCertVerificationError as exc:
+        return "CRIT", None, None, f"verification failed: {exc}"
+    except Exception as exc:
+        return "UNKNOWN", None, None, f"could not retrieve certificate: {exc}"
 
-    for host in hostnames:
-        port = 443
-        try:
-            expiry = get_cert_expiry(host, port)
-            days_left = (expiry - now).days
-            if days_left <= crit_days:
-                status = "CRIT"
-            elif days_left <= warn_days:
-                status = "WARN"
-            else:
-                status = "OK"
-            results.append((host, port, status, days_left, str(expiry.date())))
-        except ssl.SSLCertVerificationError as exc:
-            results.append((host, port, "CRIT", None, f"Verification failed: {exc}"))
-            status = "CRIT"
-        except Exception as exc:
-            results.append((host, port, "UNKNOWN", None, f"Could not retrieve certificate: {exc}"))
-            status = "UNKNOWN"
-
-        if _priority[status] > _priority[worst]:
-            worst = status
-
-    details = []
-    perfdata_parts = []
-    for host, port, status, days_left, detail in results:
-        if days_left is not None:
-            details.append(f"{host}:{port}={days_left}d {status} (expires {detail})")
-            perfdata_parts.append(f"days_left[{host}:{port}]={days_left};{warn_days};{crit_days};0;")
-        else:
-            details.append(f"{host}:{port} {status}: {detail}")
-
-    message = f"CERT {worst}: {'; '.join(details)}"
-    if perfdata_parts:
-        message += " | " + " ".join(perfdata_parts)
-
-    check.exit_with_status(worst, message)
-
-
-if __name__ == '__main__':
-    main()
+    days_left = (expiry - now).days
+    if days_left <= crit_days:
+        status = "CRIT"
+    elif days_left <= warn_days:
+        status = "WARN"
+    else:
+        status = "OK"
+    return status, days_left, str(expiry.date()), ''
 
 
 def main():
-    # Usage: check_cert.py <host1[:port]> [host2[:port] ...] <warn_days> <crit_days>
     if len(sys.argv) < 4:
         print("UNKNOWN: Usage: check_cert.py <host1[:port]> [host2[:port] ...] <warn_days> <crit_days>")
         sys.exit(3)
@@ -138,58 +59,38 @@ def main():
         print("UNKNOWN: at least one host is required")
         sys.exit(3)
 
-    _priority = {"OK": 0, "WARN": 1, "CRIT": 2, "UNKNOWN": 3}
-    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    results = []
-    worst = "OK"
+    worst   = "OK"
+    details = []
+    perfdata_parts = []
 
     for host_port in host_args:
+        host, port = host_port, 443
         if ':' in host_port:
             host, port_str = host_port.rsplit(':', 1)
             try:
                 port = int(port_str)
             except ValueError:
-                results.append((host, 443, "UNKNOWN", None, f"Invalid port '{port_str}'"))
+                details.append(f"{host}:{port_str} UNKNOWN: invalid port '{port_str}'")
                 worst = "UNKNOWN"
                 continue
-        else:
-            host = host_port
-            port = 443
 
-        try:
-            expiry = get_cert_expiry(host, port)
-            days_left = (expiry - now).days
-            if days_left <= crit_days:
-                status = "CRIT"
-            elif days_left <= warn_days:
-                status = "WARN"
-            else:
-                status = "OK"
-            results.append((host, port, status, days_left, str(expiry.date())))
-        except ssl.SSLCertVerificationError as exc:
-            results.append((host, port, "CRIT", None, f"Verification failed: {exc}"))
-            status = "CRIT"
-        except Exception as exc:
-            results.append((host, port, "UNKNOWN", None, f"Could not retrieve certificate: {exc}"))
-            status = "UNKNOWN"
+        status, days_left, expiry_date, detail = check_host(host, port, warn_days, crit_days)
 
-        if _priority[status] > _priority[worst]:
-            worst = status
-
-    details = []
-    perfdata_parts = []
-    for host, port, status, days_left, detail in results:
         if days_left is not None:
-            details.append(f"{host}:{port}={days_left}d {status} (expires {detail})")
+            details.append(f"{host}:{port} expires in {days_left}d ({expiry_date}, {status})")
             perfdata_parts.append(f"days_left[{host}:{port}]={days_left};{warn_days};{crit_days};0;")
         else:
             details.append(f"{host}:{port} {status}: {detail}")
 
-    message = f"CERT {worst}: {'; '.join(details)}"
-    if perfdata_parts:
-        message += " | " + " ".join(perfdata_parts)
+        if _PRIORITY[status] > _PRIORITY[worst]:
+            worst = status
 
-    check.exit_with_status(worst, message)
+    reason = f"CERT {worst} (warn <= {warn_days}d, crit <= {crit_days}d): " + "; ".join(details)
+
+    if perfdata_parts:
+        reason += " | " + " ".join(perfdata_parts)
+
+    check.exit_with_status(worst, reason)
 
 
 if __name__ == '__main__':

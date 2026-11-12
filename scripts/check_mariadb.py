@@ -65,10 +65,10 @@ def main():
                 continue
             growth = count - previous[key]
             if growth >= crit:
-                crit_tables.append((key, growth))
+                crit_tables.append((key, growth, previous[key], count))
                 worst = "CRIT"
             elif growth >= warn:
-                warn_tables.append((key, growth))
+                warn_tables.append((key, growth, previous[key], count))
                 if worst != "CRIT":
                     worst = "WARN"
 
@@ -77,14 +77,33 @@ def main():
         perfdata = " ".join(perfdata_parts)
 
         if worst == "CRIT":
-            details = ", ".join(f"{t.split('__')[1]} +{g}" for t, g in crit_tables)
-            check.exit_with_status("CRIT", f"CRIT: MariaDB table growth exceeded critical threshold: {details} | {perfdata}")
+            details = check.summarize(
+                (f"{t.split('__')[1]} +{g} rows ({old} -> {new})"
+                 for t, g, old, new in crit_tables),
+                limit=10,
+            )
+            check.exit_with_status(
+                "CRIT",
+                f"CRIT: MariaDB table growth exceeds crit {crit} rows/day: {details} | {perfdata}",
+            )
         elif worst == "WARN":
-            details = ", ".join(f"{t.split('__')[1]} +{g}" for t, g in warn_tables)
-            check.exit_with_status("WARN", f"WARN: MariaDB table growth exceeded warning threshold: {details} | {perfdata}")
+            details = check.summarize(
+                (f"{t.split('__')[1]} +{g} rows ({old} -> {new})"
+                 for t, g, old, new in warn_tables),
+                limit=10,
+            )
+            check.exit_with_status(
+                "WARN",
+                f"WARN: MariaDB table growth exceeds warn {warn} rows/day: {details} | {perfdata}",
+            )
         else:
             table_count = len(current)
-            check.exit_with_status("OK", f"OK: MariaDB is up, {table_count} tables healthy | {perfdata}")
+            compared = sum(1 for key in current if key in previous)
+            check.exit_with_status(
+                "OK",
+                f"OK: MariaDB is up, {table_count} tables healthy, "
+                f"no table grew more than {warn} rows/day (compared {compared} tables) | {perfdata}",
+            )
 
     except mariadb.Error as exc:
         check.exit_with_status("UNKNOWN", f"UNKNOWN: Query error: {exc}")

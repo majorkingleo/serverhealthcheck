@@ -78,13 +78,16 @@ def main():
     perfdata_parts = []
     for label, status, days_left, detail in results:
         if days_left is not None:
-            details.append(f"{label}={days_left}d {status} (expires {detail})")
+            details.append(f"{label} expires in {days_left}d ({detail}, {status})")
             # port=0 marks these as file-based in cert_stats
             perfdata_parts.append(f"days_left[{label}:0]={days_left};{warn_days};{crit_days};0;")
         else:
             details.append(f"{label} {status}: {detail}")
 
-    message = f"CERT {worst}: {'; '.join(details)}"
+    message = (
+        f"CERT {worst} (warn <= {warn_days}d, crit <= {crit_days}d, "
+        f"{len(certs)} files in {CERTS_DIR}): " + '; '.join(details)
+    )
     if perfdata_parts:
         message += " | " + " ".join(perfdata_parts)
 

@@ -25,11 +25,14 @@ def main():
             pass
 
     if pkgs:
-        detail = ', '.join(pkgs[:5])
+        detail = check.summarize(pkgs, limit=5)
         suffix = f" (+{len(pkgs) - 5} more)" if len(pkgs) > 5 else ""
-        check.exit_with_status("WARN", f"REBOOT WARN: Reboot required — updated packages: {detail}{suffix}")
+        check.exit_with_status(
+            "WARN",
+            f"REBOOT WARN: reboot required - updated packages: {detail}{suffix}",
+        )
     else:
-        check.exit_with_status("WARN", "REBOOT WARN: Reboot required")
+        check.exit_with_status("WARN", "REBOOT WARN: reboot required (no package list available)")
 
 
 if __name__ == '__main__':

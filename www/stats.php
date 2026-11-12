@@ -15,6 +15,21 @@ $stmt = $pdo->prepare("SELECT title FROM checks WHERE script_name = ?");
 $stmt->execute([$check_name]);
 $title = $stmt->fetchColumn() ?: $check_name;
 
+// Latest stored result: status plus the reason the check reported (without perfdata)
+$stmt = $pdo->prepare(
+    "SELECT h.status, h.message, h.timestamp, c.parameters, c.interval_minutes
+     FROM health_checks h
+     LEFT JOIN checks c ON c.script_name = h.check_name
+     WHERE h.check_name = ?"
+);
+$stmt->execute([$check_name]);
+$latest = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+$latest_reason    = $latest ? checkReason($latest['message']) : '';
+$latest_perfdata  = $latest ? checkPerfdata($latest['message']) : '';
+$latest_params    = trim((string)($latest['parameters'] ?? ''));
+$latest_interval  = (int)($latest['interval_minutes'] ?? 0);
+
 // Timeline: status counts grouped by day for last 30 days
 $stmt = $pdo->prepare(
     "SELECT DATE(timestamp) AS date, status, COUNT(*) AS count
@@ -321,6 +336,45 @@ if ($is_zombies) {
     <a href="index.php" class="sticky-back-btn">Back to Dashboard</a>
 
     <main>
+        <?php if ($latest): $ls = strtolower($latest['status']); ?>
+        <div class="chart-container latest-result">
+            <div class="chart-container-header">
+                <h2>Latest Result</h2>
+                <span class="latest-result-time"><?php echo htmlspecialchars($latest['timestamp']); ?></span>
+            </div>
+            <div class="latest-result-body">
+                <span class="status-widget status-<?php echo $ls; ?> latest-result-badge">
+                    <span class="status-widget-icon"><?php
+                        echo $latest['status'] === 'OK'    ? '&#10003;' :
+                            ($latest['status'] === 'WARN'  ? '&#9888;'  :
+                            ($latest['status'] === 'ERROR' ? '&#10007;' : '?'));
+                    ?></span>
+                    <span class="status-widget-title"><?php echo htmlspecialchars($latest['status']); ?></span>
+                </span>
+
+                <p class="latest-result-reason"><?php
+                    echo $latest_reason !== ''
+                        ? htmlspecialchars($latest_reason)
+                        : 'This check reported no reason text.';
+                ?></p>
+
+                <p class="latest-result-meta">
+                    Parameters: <code><?php echo htmlspecialchars($latest_params !== '' ? $latest_params : 'none'); ?></code>
+                    <?php if ($latest_interval > 0): ?>
+                        &middot; runs every <?php echo $latest_interval; ?> min
+                    <?php endif; ?>
+                </p>
+
+                <?php if ($latest_perfdata !== ''): ?>
+                <details class="latest-result-raw">
+                    <summary>Show raw output (reason + perfdata)</summary>
+                    <pre><?php echo htmlspecialchars($latest['message']); ?></pre>
+                </details>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="chart-widgets">
             <div class="chart-container">
                 <div class="chart-container-header">

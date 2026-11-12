@@ -5,7 +5,7 @@ requireLogin();
 $pdo = getDB();
 
 // Get recent health checks using configured titles from checks table
-$stmt = $pdo->query("SELECT h.check_name, COALESCE(c.title, h.check_name) AS check_title, h.status, COUNT(*) as count FROM health_checks h INNER JOIN checks c ON c.script_name = h.check_name WHERE h.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND c.enabled = 1 GROUP BY h.check_name, check_title, h.status ORDER BY check_title, h.status");
+$stmt = $pdo->query("SELECT h.check_name, COALESCE(c.title, h.check_name) AS check_title, h.status, h.message, MAX(h.timestamp) AS last_timestamp, COUNT(*) as count FROM health_checks h INNER JOIN checks c ON c.script_name = h.check_name WHERE h.timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND c.enabled = 1 GROUP BY h.check_name, check_title, h.status, h.message ORDER BY check_title, h.status");
 $checks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Detect timed-out checks: next_run is overdue by more than 5 minutes
@@ -33,15 +33,26 @@ $check_widgets = [];
 foreach ($checks as $check) {
     $name = $check['check_name'];
     if (!isset($check_widgets[$name])) {
-        $check_widgets[$name] = ['title' => $check['check_title'], 'status' => $check['status']];
+        $check_widgets[$name] = [
+            'title'     => $check['check_title'],
+            'status'    => $check['status'],
+            'message'   => $check['message'],
+            'timestamp' => $check['last_timestamp'],
+        ];
     } elseif (($status_priority[$check['status']] ?? 0) > ($status_priority[$check_widgets[$name]['status']] ?? 0)) {
-        $check_widgets[$name]['status'] = $check['status'];
+        $check_widgets[$name]['status']  = $check['status'];
+        $check_widgets[$name]['message'] = $check['message'];
     }
 }
 // Add timed-out checks (may not appear in recent 24h results if they never ran)
 foreach ($timed_out as $script_name => $title) {
     if (!isset($check_widgets[$script_name])) {
-        $check_widgets[$script_name] = ['title' => $title, 'status' => 'TIMEOUT'];
+        $check_widgets[$script_name] = [
+            'title'     => $title,
+            'status'    => 'TIMEOUT',
+            'message'   => 'Check is overdue: next run was scheduled more than 5 minutes ago.',
+            'timestamp' => null,
+        ];
     } else {
         $check_widgets[$script_name]['status'] = 'TIMEOUT';
     }
@@ -101,8 +112,12 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
             <h2>Recent Checks <span class="checks-subtitle">(last 24h)</span></h2>
             <div class="status-widgets">
                 <?php foreach ($check_widgets as $check_name => $widget): ?>
-                    <?php $s = strtolower($widget['status']); ?>
-                    <a class="status-widget status-<?php echo $s; ?>" href="stats.php?check=<?php echo urlencode($check_name); ?>">
+                    <?php
+                        $s = strtolower($widget['status']);
+                        $reason = checkReason($widget['message'] ?? '');
+                        $when = $widget['timestamp'] ? date('Y-m-d H:i', strtotime($widget['timestamp'])) : '';
+                    ?>
+                    <a class="status-widget status-<?php echo $s; ?>" href="stats.php?check=<?php echo urlencode($check_name); ?>" title="<?php echo htmlspecialchars($reason !== '' ? $reason : $widget['status']); ?>">
                         <span class="status-widget-icon"><?php
                             echo $widget['status'] === 'OK'      ? '&#10003;' :
                                 ($widget['status'] === 'WARN'    ? '&#9888;'  :
@@ -111,6 +126,12 @@ while ($row = $timeline_stmt->fetch(PDO::FETCH_ASSOC)) {
                         ?></span>
                         <span class="status-widget-title"><?php echo htmlspecialchars($widget['title']); ?></span>
                         <span class="status-widget-badge"><?php echo htmlspecialchars($widget['status']); ?></span>
+                        <?php if ($reason !== '' && $widget['status'] !== 'OK'): ?>
+                            <span class="status-widget-reason"><?php echo htmlspecialchars($reason); ?></span>
+                            <?php if ($when !== ''): ?>
+                                <span class="status-widget-when"><?php echo htmlspecialchars($when); ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </a>
                 <?php endforeach; ?>
             </div>

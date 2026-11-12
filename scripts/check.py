@@ -1,6 +1,26 @@
 """Shared helpers for health-check scripts."""
 import sys
 
+DETAIL_LIMIT = 10
+
+
+def summarize(items, limit: int = DETAIL_LIMIT, separator: str = ", ") -> str:
+    """
+    Join *items* into a short human-readable reason string.
+
+    :param items:     Iterable of values to list (cast to str, empties dropped).
+    :param limit:     Maximum number of items to show before appending "(+N more)".
+    :param separator: Separator placed between items.
+    """
+    values = [str(item).strip() for item in items]
+    values = [value for value in values if value]
+    if not values:
+        return ""
+    text = separator.join(values[:limit])
+    if len(values) > limit:
+        text += f" (+{len(values) - limit} more)"
+    return text
+
 
 def parse_args(usage: str, types: list | None = None):
     """
